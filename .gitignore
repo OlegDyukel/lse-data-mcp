@@ -1,0 +1,32 @@
+# macOS and editors
+.DS_Store
+.idea/
+.vscode/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+build/
+dist/
+
+# Credentials and local configuration
+.env
+.env.*
+!.env.example
+
+# Provider data and API response downloads
+data/
+downloads/
+exports/
+api_responses/
+real_responses/
+*.arrow
+*.feather
+*.parquet
