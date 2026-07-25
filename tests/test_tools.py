@@ -1,5 +1,6 @@
 """Tests for MCP tool-to-SDK mappings using a fake upstream client."""
 
+import json
 import time
 from typing import Any
 
@@ -16,12 +17,13 @@ class FakeClient:
     def __init__(self) -> None:
         self.calls: list[tuple[str, tuple[Any, ...], dict[str, Any]]] = []
         self.error: Exception | None = None
+        self.rows: list[dict[str, Any]] | None = None
 
     def _record(self, name: str, *args: Any, **kwargs: Any) -> list[dict[str, Any]]:
         self.calls.append((name, args, kwargs))
         if self.error is not None:
             raise self.error
-        return [{"source": name}]
+        return [{"source": name}] if self.rows is None else self.rows
 
     def candles(self, *args: Any, **kwargs: Any) -> list[dict[str, Any]]:
         return self._record("candles", *args, **kwargs)
@@ -53,7 +55,7 @@ def fake_client(monkeypatch: pytest.MonkeyPatch) -> FakeClient:
 async def test_get_candles_maps_arguments(fake_client: FakeClient) -> None:
     result = await tools.get_candles("AAPL", "1h", start="2026-01-01", limit=50, order="desc")
 
-    assert result == [{"source": "candles"}]
+    assert result["rows"] == [{"source": "candles"}]
     assert fake_client.calls == [
         (
             "candles",
@@ -88,7 +90,7 @@ async def test_symbol_tools_reject_blank_symbol(fake_client: FakeClient) -> None
 async def test_get_company_profile_maps_upstream_method(fake_client: FakeClient) -> None:
     result = await tools.get_company_profile(" AAPL ", limit=3)
 
-    assert result == [{"source": "company_profiles"}]
+    assert result["rows"] == [{"source": "company_profiles"}]
     assert fake_client.calls == [("company_profiles", ("AAPL",), {"limit": 3})]
 
 
@@ -96,7 +98,7 @@ async def test_get_company_profile_maps_upstream_method(fake_client: FakeClient)
 async def test_get_fundamentals_maps_upstream_method(fake_client: FakeClient) -> None:
     result = await tools.get_fundamentals("MSFT", limit=4)
 
-    assert result == [{"source": "fundamentals"}]
+    assert result["rows"] == [{"source": "fundamentals"}]
     assert fake_client.calls == [("fundamentals", ("MSFT",), {"limit": 4})]
 
 
@@ -104,7 +106,7 @@ async def test_get_fundamentals_maps_upstream_method(fake_client: FakeClient) ->
 async def test_get_insider_transactions_maps_upstream_method(fake_client: FakeClient) -> None:
     result = await tools.get_insider_transactions("AAPL", transaction_type="P-Purchase")
 
-    assert result == [{"source": "insider_trades"}]
+    assert result["rows"] == [{"source": "insider_trades"}]
     assert fake_client.calls == [
         (
             "insider_trades",
@@ -124,7 +126,7 @@ async def test_get_insider_transactions_maps_upstream_method(fake_client: FakeCl
 async def test_get_dividends_maps_filters(fake_client: FakeClient) -> None:
     result = await tools.get_dividends("AAPL", start="2026-01-01", order="asc", limit=10)
 
-    assert result == [{"source": "dividends"}]
+    assert result["rows"] == [{"source": "dividends"}]
     assert fake_client.calls == [
         (
             "dividends",
@@ -149,7 +151,7 @@ async def test_get_economic_calendar_maps_filters(fake_client: FakeClient) -> No
         limit=25,
     )
 
-    assert result == [{"source": "economic_calendar"}]
+    assert result["rows"] == [{"source": "economic_calendar"}]
     assert fake_client.calls == [
         (
             "economic_calendar",
@@ -223,7 +225,7 @@ async def test_upstream_call_does_not_block_the_event_loop(fake_client: FakeClie
         result = await tools.get_candles("AAPL")
         task_group.cancel_scope.cancel()
 
-    assert result == [{"source": "candles"}]
+    assert result["rows"] == [{"source": "candles"}]
     assert ticks > 0, "the event loop stalled while the upstream call was in flight"
 
 
@@ -262,3 +264,102 @@ async def test_upstream_error_redacts_key_the_live_client_was_built_with(
         await tools.get_candles("AAPL")
 
     assert "key-held-by-live-client" not in str(error.value)
+
+
+@pytest.mark.anyio
+async def test_oversized_response_is_truncated_to_the_byte_budget(
+    fake_client: FakeClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("LSE_MAX_RESPONSE_BYTES", "2000")
+    fake_client.rows = [
+        {"timestamp": f"2026-01-01T00:{minute:02d}:00Z", "close": 123.456, "volume": 1000}
+        for minute in range(60)
+    ]
+
+    result = await tools.get_candles("AAPL")
+
+    assert result["truncated"] is True
+    assert 0 < result["row_count"] < 60
+    assert result["row_count"] == len(result["rows"])
+    assert len(json.dumps(result["rows"])) <= 2000
+
+
+@pytest.mark.anyio
+async def test_response_within_budget_is_returned_whole(fake_client: FakeClient) -> None:
+    fake_client.rows = [{"close": 1.0}, {"close": 2.0}]
+
+    result = await tools.get_candles("AAPL")
+
+    assert result["truncated"] is False
+    assert result["rows"] == [{"close": 1.0}, {"close": 2.0}]
+    assert result["row_count"] == 2
+    assert "note" not in result
+
+
+@pytest.mark.anyio
+async def test_truncation_note_tells_the_model_how_to_narrow(
+    fake_client: FakeClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("LSE_MAX_RESPONSE_BYTES", "500")
+    fake_client.rows = [{"value": "x" * 50} for _ in range(100)]
+
+    note = (await tools.get_candles("AAPL"))["note"]
+
+    assert "start" in note and "end" in note, "the note must say how to narrow the request"
+    assert "limit" in note
+
+
+@pytest.mark.anyio
+async def test_a_single_oversized_row_is_still_returned(
+    fake_client: FakeClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("LSE_MAX_RESPONSE_BYTES", "10")
+    fake_client.rows = [{"value": "x" * 500}, {"value": "y" * 500}]
+
+    result = await tools.get_candles("AAPL")
+
+    assert result["row_count"] == 1, "returning zero rows tells the model nothing"
+    assert result["truncated"] is True
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("field", ["start", "end"])
+async def test_malformed_dates_are_rejected_without_an_upstream_call(
+    fake_client: FakeClient, field: str
+) -> None:
+    window: dict[str, Any] = {field: "yesterday"}
+
+    with pytest.raises(ValueError, match="ISO 8601"):
+        await tools.get_candles("AAPL", **window)
+
+    assert fake_client.calls == [], "a bad date must not spend an API call"
+
+
+@pytest.mark.anyio
+async def test_blank_dates_are_treated_as_no_filter(fake_client: FakeClient) -> None:
+    await tools.get_candles("AAPL", start="   ", end="")
+
+    assert fake_client.calls[0][2]["start"] is None
+    assert fake_client.calls[0][2]["end"] is None
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "value", ["2026-01-01", "2026-01-01T14:30:00", "2026-01-01T14:30:00Z", " 2026-01-01 "]
+)
+async def test_accepts_documented_iso_forms(fake_client: FakeClient, value: str) -> None:
+    await tools.get_candles("AAPL", start=value)
+
+    assert fake_client.calls[0][2]["start"] == value.strip()
+
+
+@pytest.mark.anyio
+async def test_every_windowed_tool_validates_its_dates(fake_client: FakeClient) -> None:
+    for tool in (tools.get_candles, tools.get_dividends, tools.get_insider_transactions):
+        with pytest.raises(ValueError, match="ISO 8601"):
+            await tool("AAPL", start="01/01/2026")
+
+    with pytest.raises(ValueError, match="ISO 8601"):
+        await tools.get_economic_calendar(end="01/01/2026")
+
+    assert fake_client.calls == []

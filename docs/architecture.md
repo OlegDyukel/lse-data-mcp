@@ -25,7 +25,8 @@ London Strategic Edge API
 ## Module responsibilities
 
 - `server.py` owns MCP metadata, registration, and transport startup.
-- `tools.py` maps stable MCP tool names to documented SDK methods.
+- `tools.py` maps stable MCP tool names to documented SDK methods, validates arguments before
+  they cost an API call, and shapes every result into the `rows`/`row_count`/`truncated` envelope.
 - `client.py` lazily creates the upstream client once per process.
 - `config.py` validates required environment configuration.
 

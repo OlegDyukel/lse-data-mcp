@@ -1,13 +1,16 @@
 """Read-only MCP tool implementations backed by the official ``lse-data`` SDK."""
 
 import functools
+import json
 from collections.abc import Callable
-from typing import Any, Literal, cast
+from datetime import datetime
+from typing import Any, Literal, NotRequired, TypedDict, cast
 
 from anyio import to_thread
 from lse import LSEError
 
 from lse_data_mcp.client import get_client, get_secret_values
+from lse_data_mcp.config import get_max_response_bytes
 
 Timeframe = Literal[
     "1s",
@@ -31,6 +34,15 @@ MAX_ROWS = 5_000
 _MAX_MESSAGE_CHARS = 300
 
 
+class ToolResponse(TypedDict):
+    """Rows plus the metadata a caller needs to know whether it saw them all."""
+
+    rows: list[dict[str, Any]]
+    row_count: int
+    truncated: bool
+    note: NotRequired[str]
+
+
 def _validate_symbol(symbol: str) -> str:
     value = symbol.strip()
     if not value:
@@ -42,6 +54,52 @@ def _validate_limit(limit: int) -> int:
     if not 1 <= limit <= MAX_ROWS:
         raise ValueError(f"limit must be between 1 and {MAX_ROWS:,}")
     return limit
+
+
+def _validate_timestamp(field: str, value: str | None) -> str | None:
+    """Reject a malformed date locally rather than spending an API call on it."""
+    if value is None:
+        return None
+    text = value.strip()
+    if not text:
+        return None
+    try:
+        datetime.fromisoformat(text)
+    except ValueError:
+        raise ValueError(
+            f"{field} must be an ISO 8601 date or timestamp, for example "
+            f"2026-01-01 or 2026-01-01T14:30:00Z, not {text!r}"
+        ) from None
+    return text
+
+
+def _fit_to_budget(rows: list[dict[str, Any]], budget: int) -> tuple[list[dict[str, Any]], bool]:
+    """Return the longest prefix of ``rows`` whose JSON stays within ``budget``."""
+    total = 2  # the enclosing brackets
+    for index, row in enumerate(rows):
+        total += len(json.dumps(row, default=str)) + 1  # the row plus its separator
+        if total > budget:
+            # Returning zero rows would tell the model nothing, so keep the first
+            # even when it alone exceeds the budget; the note explains why.
+            return rows[: max(index, 1)], True
+    return rows, False
+
+
+def _build_response(rows: list[dict[str, Any]]) -> ToolResponse:
+    budget = get_max_response_bytes()
+    kept, truncated = _fit_to_budget(rows, budget)
+    response: ToolResponse = {
+        "rows": kept,
+        "row_count": len(kept),
+        "truncated": truncated,
+    }
+    if truncated:
+        response["note"] = (
+            f"Returned the first {len(kept):,} of {len(rows):,} rows to stay within the "
+            f"{budget:,}-byte response budget. Narrow the window with start and end, or "
+            f"lower limit, to see the rest."
+        )
+    return response
 
 
 def _safe_provider_message(message: str) -> str:
@@ -104,8 +162,8 @@ async def _call_upstream(
     /,
     *args: Any,
     **kwargs: Any,
-) -> list[dict[str, Any]]:
-    """Run a blocking SDK call off the event loop and normalise its failures.
+) -> ToolResponse:
+    """Run a blocking SDK call off the event loop and normalise its result.
 
     Every SDK read is synchronous ``urllib``, so calling one inline would stall
     the whole server — including cancellations and other tool calls — for up to
@@ -118,7 +176,7 @@ async def _call_upstream(
         raise _translate_error(operation, exc) from exc
     except Exception as exc:
         raise _unexpected_error(operation, exc) from exc
-    return cast(list[dict[str, Any]], rows)
+    return _build_response(cast(list[dict[str, Any]], rows))
 
 
 async def get_candles(
@@ -128,13 +186,15 @@ async def get_candles(
     end: str | None = None,
     limit: int = 200,
     order: Order = "asc",
-) -> list[dict[str, Any]]:
+) -> ToolResponse:
     """Return OHLCV candles for an instrument.
 
     Dates may be ISO 8601 dates or timestamps accepted by the upstream API.
     """
     symbol = _validate_symbol(symbol)
     limit = _validate_limit(limit)
+    start = _validate_timestamp("start", start)
+    end = _validate_timestamp("end", end)
     return await _call_upstream(
         "candles",
         get_client().candles,
@@ -147,7 +207,7 @@ async def get_candles(
     )
 
 
-async def get_company_profile(symbol: str, limit: int = 200) -> list[dict[str, Any]]:
+async def get_company_profile(symbol: str, limit: int = 200) -> ToolResponse:
     """Return company profile information for a ticker."""
     symbol = _validate_symbol(symbol)
     limit = _validate_limit(limit)
@@ -159,7 +219,7 @@ async def get_company_profile(symbol: str, limit: int = 200) -> list[dict[str, A
     )
 
 
-async def get_fundamentals(symbol: str, limit: int = 200) -> list[dict[str, Any]]:
+async def get_fundamentals(symbol: str, limit: int = 200) -> ToolResponse:
     """Return fundamental data for a ticker."""
     symbol = _validate_symbol(symbol)
     limit = _validate_limit(limit)
@@ -178,10 +238,12 @@ async def get_insider_transactions(
     end: str | None = None,
     order: Order = "desc",
     limit: int = 200,
-) -> list[dict[str, Any]]:
+) -> ToolResponse:
     """Return reported insider transactions for a ticker."""
     symbol = _validate_symbol(symbol)
     limit = _validate_limit(limit)
+    start = _validate_timestamp("start", start)
+    end = _validate_timestamp("end", end)
     return await _call_upstream(
         "insider transactions",
         get_client().insider_trades,
@@ -200,10 +262,12 @@ async def get_dividends(
     end: str | None = None,
     order: Order = "desc",
     limit: int = 200,
-) -> list[dict[str, Any]]:
+) -> ToolResponse:
     """Return dividend events for a ticker."""
     symbol = _validate_symbol(symbol)
     limit = _validate_limit(limit)
+    start = _validate_timestamp("start", start)
+    end = _validate_timestamp("end", end)
     return await _call_upstream(
         "dividends",
         get_client().dividends,
@@ -223,9 +287,11 @@ async def get_economic_calendar(
     released_only: bool = False,
     order: Order = "asc",
     limit: int = 200,
-) -> list[dict[str, Any]]:
+) -> ToolResponse:
     """Return scheduled economic events, optionally filtered by region and date."""
     limit = _validate_limit(limit)
+    start = _validate_timestamp("start", start)
+    end = _validate_timestamp("end", end)
     return await _call_upstream(
         "economic calendar",
         get_client().economic_calendar,
