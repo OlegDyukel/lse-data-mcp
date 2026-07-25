@@ -23,7 +23,7 @@ classifiers = [
 dependencies = [
     "anyio>=4.5,<5",
     "lse-data>=0.14,<1",
-    "mcp[cli]>=1.27,<2",
+    "mcp>=1.27,<2",
 ]
 
 [project.optional-dependencies]
@@ -54,7 +54,6 @@ select = ["E", "F", "I", "B", "UP", "RUF"]
 [tool.mypy]
 python_version = "3.11"
 strict = true
-ignore_missing_imports = true
 files = ["src", "tests"]
 
 [tool.pytest.ini_options]
