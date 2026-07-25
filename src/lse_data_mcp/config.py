@@ -10,9 +10,18 @@ class ConfigurationError(RuntimeError):
     """Raised when required server configuration is missing or invalid."""
 
 
+def get_api_key_if_set() -> str | None:
+    """Return the configured API key, or ``None`` when it is absent.
+
+    Redaction needs the key without the failure mode of :func:`get_api_key`, so
+    reading the environment stays owned by this module.
+    """
+    return os.getenv("LSE_API_KEY", "").strip() or None
+
+
 def get_api_key() -> str:
     """Return the configured LSE API key without logging or persisting it."""
-    api_key = os.getenv("LSE_API_KEY", "").strip()
+    api_key = get_api_key_if_set()
     if not api_key:
         raise ConfigurationError(
             "LSE_API_KEY is not configured. Supply your own London Strategic Edge API key "
