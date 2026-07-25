@@ -32,6 +32,7 @@ Order = Literal["asc", "desc"]
 
 MAX_ROWS = 5_000
 _MAX_MESSAGE_CHARS = 300
+_MAX_ECHO_CHARS = 200
 
 
 class ToolResponse(TypedDict):
@@ -108,6 +109,24 @@ def _safe_provider_message(message: str) -> str:
     return message[:_MAX_MESSAGE_CHARS]
 
 
+def _echoable_detail(message: str) -> str | None:
+    """Return upstream text only when it plainly reads as a short error string.
+
+    The SDK falls back to the raw response body when it is not JSON, so an HTML
+    error page, an edge block page, or anything else the network decides to
+    return would otherwise land verbatim in the model's context. Echo the short
+    structured messages that help the caller, and drop the rest.
+    """
+    text = " ".join(message.split())
+    if not text or len(text) > _MAX_ECHO_CHARS:
+        return None
+    if "<" in text or ">" in text:  # markup, not an error string
+        return None
+    if any(ord(char) < 32 or ord(char) == 127 for char in text):  # escapes, control bytes
+        return None
+    return text
+
+
 def _translate_error(operation: str, exc: LSEError) -> RuntimeError:
     status = exc.status
     message = _safe_provider_message(exc.message)
@@ -134,7 +153,7 @@ def _translate_error(operation: str, exc: LSEError) -> RuntimeError:
     elif status >= 500:
         detail = "the upstream service is temporarily unavailable; retry later"
     else:
-        detail = message or "the upstream API rejected the request"
+        detail = _echoable_detail(message) or "the upstream API rejected the request"
 
     status_suffix = f" (status {status})" if status else ""
     return RuntimeError(f"{prefix}{status_suffix}: {detail}")
@@ -148,7 +167,7 @@ def _unexpected_error(operation: str, exc: Exception) -> RuntimeError:
     keeps a bad upstream reply distinguishable from a bad tool argument.
     """
     name = type(exc).__name__
-    detail = _safe_provider_message(str(exc))
+    detail = _echoable_detail(_safe_provider_message(str(exc)))
     suffix = f": {detail}" if detail else ""
     return RuntimeError(
         f"London Strategic Edge request failed during {operation}; "
