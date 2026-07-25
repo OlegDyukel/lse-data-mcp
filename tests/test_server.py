@@ -5,11 +5,6 @@ import pytest
 from lse_data_mcp import server
 
 
-@pytest.fixture
-def anyio_backend() -> str:
-    return "asyncio"
-
-
 @pytest.mark.anyio
 async def test_server_registers_only_six_read_only_tools() -> None:
     registered = await server.mcp.list_tools()
@@ -28,6 +23,15 @@ async def test_server_registers_only_six_read_only_tools() -> None:
         assert tool.annotations.destructiveHint is False
         assert tool.annotations.idempotentHint is True
         assert tool.annotations.openWorldHint is True
+
+
+def test_every_tool_is_registered_as_a_coroutine() -> None:
+    """FastMCP awaits async tools and calls sync ones inline, stalling the loop."""
+    tools = server.mcp._tool_manager.list_tools()
+
+    assert tools
+    for tool in tools:
+        assert tool.is_async, f"{tool.name} would block the event loop for the whole request"
 
 
 def test_main_uses_stdio(monkeypatch: pytest.MonkeyPatch) -> None:

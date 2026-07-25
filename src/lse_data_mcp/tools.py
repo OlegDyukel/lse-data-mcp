@@ -1,11 +1,13 @@
 """Read-only MCP tool implementations backed by the official ``lse-data`` SDK."""
 
-import os
+import functools
+from collections.abc import Callable
 from typing import Any, Literal, cast
 
+from anyio import to_thread
 from lse import LSEError
 
-from lse_data_mcp.client import get_client
+from lse_data_mcp.client import get_client, get_secret_values
 
 Timeframe = Literal[
     "1s",
@@ -25,6 +27,9 @@ Timeframe = Literal[
 ]
 Order = Literal["asc", "desc"]
 
+MAX_ROWS = 5_000
+_MAX_MESSAGE_CHARS = 300
+
 
 def _validate_symbol(symbol: str) -> str:
     value = symbol.strip()
@@ -34,16 +39,15 @@ def _validate_symbol(symbol: str) -> str:
 
 
 def _validate_limit(limit: int) -> int:
-    if not 1 <= limit <= 5_000:
-        raise ValueError("limit must be between 1 and 5,000")
+    if not 1 <= limit <= MAX_ROWS:
+        raise ValueError(f"limit must be between 1 and {MAX_ROWS:,}")
     return limit
 
 
 def _safe_provider_message(message: str) -> str:
-    api_key = os.getenv("LSE_API_KEY", "").strip()
-    if len(api_key) >= 8:
-        message = message.replace(api_key, "[redacted]")
-    return message[:300]
+    for secret in get_secret_values():
+        message = message.replace(secret, "[redacted]")
+    return message[:_MAX_MESSAGE_CHARS]
 
 
 def _translate_error(operation: str, exc: LSEError) -> RuntimeError:
@@ -78,7 +82,46 @@ def _translate_error(operation: str, exc: LSEError) -> RuntimeError:
     return RuntimeError(f"{prefix}{status_suffix}: {detail}")
 
 
-def get_candles(
+def _unexpected_error(operation: str, exc: Exception) -> RuntimeError:
+    """Wrap a failure the SDK does not report as ``LSEError``.
+
+    The SDK leaks ``ValueError`` from decoding a malformed response body, and a
+    future version may leak others. Wrapping keeps every failure redacted and
+    keeps a bad upstream reply distinguishable from a bad tool argument.
+    """
+    name = type(exc).__name__
+    detail = _safe_provider_message(str(exc))
+    suffix = f": {detail}" if detail else ""
+    return RuntimeError(
+        f"London Strategic Edge request failed during {operation}; "
+        f"unexpected {name} from the upstream client{suffix}"
+    )
+
+
+async def _call_upstream(
+    operation: str,
+    method: Callable[..., Any],
+    /,
+    *args: Any,
+    **kwargs: Any,
+) -> list[dict[str, Any]]:
+    """Run a blocking SDK call off the event loop and normalise its failures.
+
+    Every SDK read is synchronous ``urllib``, so calling one inline would stall
+    the whole server — including cancellations and other tool calls — for up to
+    ``LSE_TIMEOUT_SECONDS``.
+    """
+    call = functools.partial(method, *args, **kwargs)
+    try:
+        rows = await to_thread.run_sync(call)
+    except LSEError as exc:
+        raise _translate_error(operation, exc) from exc
+    except Exception as exc:
+        raise _unexpected_error(operation, exc) from exc
+    return cast(list[dict[str, Any]], rows)
+
+
+async def get_candles(
     symbol: str,
     timeframe: Timeframe = "1d",
     start: str | None = None,
@@ -92,44 +135,43 @@ def get_candles(
     """
     symbol = _validate_symbol(symbol)
     limit = _validate_limit(limit)
-
-    try:
-        return cast(
-            list[dict[str, Any]],
-            get_client().candles(
-                symbol,
-                timeframe,
-                start=start,
-                end=end,
-                limit=limit,
-                order=order,
-            ),
-        )
-    except LSEError as exc:
-        raise _translate_error("candles", exc) from exc
+    return await _call_upstream(
+        "candles",
+        get_client().candles,
+        symbol,
+        timeframe,
+        start=start,
+        end=end,
+        limit=limit,
+        order=order,
+    )
 
 
-def get_company_profile(symbol: str, limit: int = 200) -> list[dict[str, Any]]:
+async def get_company_profile(symbol: str, limit: int = 200) -> list[dict[str, Any]]:
     """Return company profile information for a ticker."""
     symbol = _validate_symbol(symbol)
     limit = _validate_limit(limit)
-    try:
-        return cast(list[dict[str, Any]], get_client().company_profiles(symbol, limit=limit))
-    except LSEError as exc:
-        raise _translate_error("company profile", exc) from exc
+    return await _call_upstream(
+        "company profile",
+        get_client().company_profiles,
+        symbol,
+        limit=limit,
+    )
 
 
-def get_fundamentals(symbol: str, limit: int = 200) -> list[dict[str, Any]]:
+async def get_fundamentals(symbol: str, limit: int = 200) -> list[dict[str, Any]]:
     """Return fundamental data for a ticker."""
     symbol = _validate_symbol(symbol)
     limit = _validate_limit(limit)
-    try:
-        return cast(list[dict[str, Any]], get_client().fundamentals(symbol, limit=limit))
-    except LSEError as exc:
-        raise _translate_error("fundamentals", exc) from exc
+    return await _call_upstream(
+        "fundamentals",
+        get_client().fundamentals,
+        symbol,
+        limit=limit,
+    )
 
 
-def get_insider_transactions(
+async def get_insider_transactions(
     symbol: str,
     transaction_type: str | None = None,
     start: str | None = None,
@@ -140,23 +182,19 @@ def get_insider_transactions(
     """Return reported insider transactions for a ticker."""
     symbol = _validate_symbol(symbol)
     limit = _validate_limit(limit)
-    try:
-        return cast(
-            list[dict[str, Any]],
-            get_client().insider_trades(
-                symbol,
-                type=transaction_type,
-                start=start,
-                end=end,
-                order=order,
-                limit=limit,
-            ),
-        )
-    except LSEError as exc:
-        raise _translate_error("insider transactions", exc) from exc
+    return await _call_upstream(
+        "insider transactions",
+        get_client().insider_trades,
+        symbol,
+        type=transaction_type,
+        start=start,
+        end=end,
+        order=order,
+        limit=limit,
+    )
 
 
-def get_dividends(
+async def get_dividends(
     symbol: str,
     start: str | None = None,
     end: str | None = None,
@@ -166,22 +204,18 @@ def get_dividends(
     """Return dividend events for a ticker."""
     symbol = _validate_symbol(symbol)
     limit = _validate_limit(limit)
-    try:
-        return cast(
-            list[dict[str, Any]],
-            get_client().dividends(
-                symbol,
-                start=start,
-                end=end,
-                order=order,
-                limit=limit,
-            ),
-        )
-    except LSEError as exc:
-        raise _translate_error("dividends", exc) from exc
+    return await _call_upstream(
+        "dividends",
+        get_client().dividends,
+        symbol,
+        start=start,
+        end=end,
+        order=order,
+        limit=limit,
+    )
 
 
-def get_economic_calendar(
+async def get_economic_calendar(
     region: str | None = None,
     event: str | None = None,
     start: str | None = None,
@@ -192,18 +226,14 @@ def get_economic_calendar(
 ) -> list[dict[str, Any]]:
     """Return scheduled economic events, optionally filtered by region and date."""
     limit = _validate_limit(limit)
-    try:
-        return cast(
-            list[dict[str, Any]],
-            get_client().economic_calendar(
-                region=region,
-                event=event,
-                start=start,
-                end=end,
-                released_only=released_only,
-                order=order,
-                limit=limit,
-            ),
-        )
-    except LSEError as exc:
-        raise _translate_error("economic calendar", exc) from exc
+    return await _call_upstream(
+        "economic calendar",
+        get_client().economic_calendar,
+        region=region,
+        event=event,
+        start=start,
+        end=end,
+        released_only=released_only,
+        order=order,
+        limit=limit,
+    )

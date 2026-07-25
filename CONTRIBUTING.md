@@ -1,6 +1,6 @@
 # Contributing
 
-This project is currently in an early private-development phase.
+This project is currently an early-stage open-source project.
 
 ## Development setup
 
@@ -15,7 +15,7 @@ python -m pip install -e ".[dev]"
 ```bash
 ruff format .
 ruff check .
-mypy src
+mypy src tests
 pytest
 ```
 
