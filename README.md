@@ -14,6 +14,20 @@ and does not cache or persist responses.
 
 All tools are declared read-only, non-destructive, and idempotent in their MCP metadata.
 
+Every tool returns the same envelope, so a caller can always tell whether it saw the full result:
+
+```json
+{
+  "rows": [{ "timestamp": "2026-01-02T00:00:00Z", "close": 187.4, "volume": 41230100 }],
+  "row_count": 1,
+  "truncated": false
+}
+```
+
+When the rows would exceed the response budget the server returns the leading rows it can fit,
+sets `"truncated": true`, and adds a `note` explaining how to narrow the request. Rows are never
+silently dropped.
+
 | Tool | What it returns | Main filters |
 | --- | --- | --- |
 | `get_candles` | OHLCV candles for an instrument | `symbol`, `timeframe`, `start`, `end`, `limit`, `order` |
@@ -25,6 +39,9 @@ All tools are declared read-only, non-destructive, and idempotent in their MCP m
 
 Each call defaults to at most 200 rows. The upstream API caps a single interactive call at 5,000
 rows; use `start` and `end` to request narrower windows.
+
+`start` and `end` accept an ISO 8601 date or timestamp (`2026-01-01`, `2026-01-01T14:30:00Z`).
+Anything else is rejected locally, so a malformed date costs no API call and no quota.
 
 ## Obtain an API key
 
@@ -67,6 +84,7 @@ The server reads configuration from its process environment:
 | --- | --- | --- | --- |
 | `LSE_API_KEY` | Yes | - | The user's own London Strategic Edge API key |
 | `LSE_TIMEOUT_SECONDS` | No | `60` | Timeout for each upstream REST request; must be positive |
+| `LSE_MAX_RESPONSE_BYTES` | No | `131072` | Serialized-JSON budget for one tool result; must be a positive whole number |
 
 `.env.example` is a reference only. The server deliberately does not load `.env` files; the MCP
 host remains responsible for secret loading.
@@ -140,6 +158,9 @@ during an active limit and lets the MCP client decide when to retry.
 
 - A tool call returns one interactive page, with a hard maximum of 5,000 rows. This server does
   not expose bulk history/export jobs.
+- A full 5,000-row page is far more JSON than an agent can usefully hold, so the server also caps
+  a result at `LSE_MAX_RESPONSE_BYTES` and reports the cut through `truncated` and `note`. Raise
+  the budget, or page with `start` and `end`, when a tool reports truncation.
 - Available instruments, fields, history depth, entitlements, quotas, and rate limits are owned by
   London Strategic Edge and may change. Check the [official SDK documentation](https://github.com/londonstrategicedge/lse-data)
   and your account before relying on a dataset.

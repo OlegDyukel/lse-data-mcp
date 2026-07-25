@@ -5,6 +5,10 @@ import os
 
 DEFAULT_TIMEOUT_SECONDS = 60.0
 
+# A single interactive page can reach 5,000 rows, which is far more JSON than an
+# agent can usefully hold. Cap what one tool call spends of the model's context.
+DEFAULT_MAX_RESPONSE_BYTES = 128 * 1024
+
 
 class ConfigurationError(RuntimeError):
     """Raised when required server configuration is missing or invalid."""
@@ -41,3 +45,16 @@ def get_timeout_seconds() -> float:
     if not math.isfinite(timeout) or timeout <= 0:
         raise ConfigurationError("LSE_TIMEOUT_SECONDS must be a positive number.")
     return timeout
+
+
+def get_max_response_bytes() -> int:
+    """Return the serialized-JSON budget a single tool result may occupy."""
+    raw_value = os.getenv("LSE_MAX_RESPONSE_BYTES", str(DEFAULT_MAX_RESPONSE_BYTES)).strip()
+    try:
+        max_bytes = int(raw_value)
+    except ValueError as exc:
+        raise ConfigurationError("LSE_MAX_RESPONSE_BYTES must be a positive whole number.") from exc
+
+    if max_bytes <= 0:
+        raise ConfigurationError("LSE_MAX_RESPONSE_BYTES must be a positive whole number.")
+    return max_bytes
