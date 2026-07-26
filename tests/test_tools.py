@@ -43,6 +43,21 @@ class FakeClient:
     def economic_calendar(self, *args: Any, **kwargs: Any) -> list[dict[str, Any]]:
         return self._record("economic_calendar", *args, **kwargs)
 
+    def catalog(self, *args: Any, **kwargs: Any) -> list[dict[str, Any]]:
+        return self._record("catalog", *args, **kwargs)
+
+    def datasets(self, *args: Any, **kwargs: Any) -> list[dict[str, Any]]:
+        return self._record("datasets", *args, **kwargs)
+
+    def reference(self, *args: Any, **kwargs: Any) -> list[dict[str, Any]]:
+        return self._record("reference", *args, **kwargs)
+
+    def vault_meta(self, *args: Any, **kwargs: Any) -> list[dict[str, Any]]:
+        return self._record("vault_meta", *args, **kwargs)
+
+    def options_underlyings(self, *args: Any, **kwargs: Any) -> list[dict[str, Any]]:
+        return self._record("options_underlyings", *args, **kwargs)
+
 
 @pytest.fixture
 def fake_client(monkeypatch: pytest.MonkeyPatch) -> FakeClient:
@@ -411,3 +426,69 @@ async def test_unrecognised_status_still_echoes_a_plain_api_message(
 
     with pytest.raises(RuntimeError, match="invalid timeframe: 2x"):
         await tools.get_candles("AAPL")
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("resource", "upstream"),
+    [
+        ("catalog", "catalog"),
+        ("datasets", "datasets"),
+        ("reference", "reference"),
+        ("vault_meta", "vault_meta"),
+        ("options_underlyings", "options_underlyings"),
+    ],
+)
+async def test_get_reference_maps_each_resource(
+    fake_client: FakeClient, resource: str, upstream: str
+) -> None:
+    result = await tools.get_reference(resource)  # type: ignore[arg-type]
+
+    assert result["rows"] == [{"source": upstream}]
+    assert fake_client.calls == [(upstream, (), {})]
+
+
+@pytest.mark.anyio
+async def test_get_reference_passes_catalog_category(fake_client: FakeClient) -> None:
+    await tools.get_reference("catalog", category="crypto")
+
+    assert fake_client.calls == [("catalog", (), {"category": "crypto"})]
+
+
+@pytest.mark.anyio
+async def test_get_reference_passes_datasets_filter(fake_client: FakeClient) -> None:
+    await tools.get_reference("datasets", dataset="stocks")
+
+    assert fake_client.calls == [("datasets", (), {"dataset": "stocks"})]
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("resource", "kwargs"),
+    [
+        ("vault_meta", {"category": "crypto"}),
+        ("datasets", {"category": "crypto"}),
+        ("catalog", {"dataset": "stocks"}),
+        ("reference", {"dataset": "stocks"}),
+    ],
+)
+async def test_get_reference_rejects_a_filter_that_does_not_apply(
+    fake_client: FakeClient, resource: str, kwargs: dict[str, Any]
+) -> None:
+    """Silently dropping an inapplicable filter is the failure this union must avoid."""
+    with pytest.raises(ValueError, match="does not accept"):
+        await tools.get_reference(resource, **kwargs)  # type: ignore[arg-type]
+
+    assert fake_client.calls == []
+
+
+@pytest.mark.anyio
+async def test_get_reference_wraps_a_single_object_result(fake_client: FakeClient) -> None:
+    """vault_meta returns one dict, not a list of rows."""
+    fake_client.vault_meta = lambda *a, **k: {"datasets": 12, "timeframes": 14}  # type: ignore[assignment]
+
+    result = await tools.get_reference("vault_meta")
+
+    assert result["rows"] == [{"datasets": 12, "timeframes": 14}]
+    assert result["row_count"] == 1
+    assert result["truncated"] is False

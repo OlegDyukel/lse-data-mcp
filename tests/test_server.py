@@ -6,7 +6,7 @@ from lse_data_mcp import server
 
 
 @pytest.mark.anyio
-async def test_server_registers_only_six_read_only_tools() -> None:
+async def test_server_registers_the_read_only_tool_surface() -> None:
     registered = await server.mcp.list_tools()
 
     assert {tool.name for tool in registered} == {
@@ -16,6 +16,7 @@ async def test_server_registers_only_six_read_only_tools() -> None:
         "get_insider_transactions",
         "get_dividends",
         "get_economic_calendar",
+        "get_reference",
     }
     for tool in registered:
         assert tool.annotations is not None

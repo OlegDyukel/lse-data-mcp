@@ -13,6 +13,7 @@ from lse_data_mcp.tools import (
     get_economic_calendar,
     get_fundamentals,
     get_insider_transactions,
+    get_reference,
 )
 
 mcp = FastMCP(
@@ -30,6 +31,7 @@ _TOOLS: tuple[Callable[..., Any], ...] = (
     get_insider_transactions,
     get_dividends,
     get_economic_calendar,
+    get_reference,
 )
 
 _READ_ONLY_ANNOTATIONS = ToolAnnotations(

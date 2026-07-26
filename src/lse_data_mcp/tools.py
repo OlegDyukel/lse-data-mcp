@@ -30,6 +30,26 @@ Timeframe = Literal[
 ]
 Order = Literal["asc", "desc"]
 
+# Discovery endpoints, grouped because they take no meaningful arguments between
+# them. Each name maps to the SDK method of the same name.
+ReferenceResource = Literal[
+    "catalog",
+    "datasets",
+    "reference",
+    "vault_meta",
+    "options_underlyings",
+]
+
+# The filter each resource accepts, if any. Anything else is refused rather than
+# dropped, so a grouped tool cannot silently ignore an argument the caller meant.
+_REFERENCE_FILTERS: dict[str, str | None] = {
+    "catalog": "category",
+    "datasets": "dataset",
+    "reference": None,
+    "vault_meta": None,
+    "options_underlyings": None,
+}
+
 MAX_ROWS = 5_000
 _MAX_MESSAGE_CHARS = 300
 _MAX_ECHO_CHARS = 200
@@ -84,6 +104,13 @@ def _fit_to_budget(rows: list[dict[str, Any]], budget: int) -> tuple[list[dict[s
             # even when it alone exceeds the budget; the note explains why.
             return rows[: max(index, 1)], True
     return rows, False
+
+
+def _as_rows(result: Any) -> list[dict[str, Any]]:
+    """Normalise an SDK result into rows; some endpoints return a single object."""
+    if isinstance(result, dict):
+        return [cast(dict[str, Any], result)]
+    return cast(list[dict[str, Any]], result)
 
 
 def _build_response(rows: list[dict[str, Any]]) -> ToolResponse:
@@ -195,7 +222,7 @@ async def _call_upstream(
         raise _translate_error(operation, exc) from exc
     except Exception as exc:
         raise _unexpected_error(operation, exc) from exc
-    return _build_response(cast(list[dict[str, Any]], rows))
+    return _build_response(_as_rows(rows))
 
 
 async def get_candles(
@@ -295,6 +322,38 @@ async def get_dividends(
         end=end,
         order=order,
         limit=limit,
+    )
+
+
+async def get_reference(
+    resource: ReferenceResource,
+    category: str | None = None,
+    dataset: str | None = None,
+) -> ToolResponse:
+    """Return vault discovery data: what instruments, datasets and timeframes exist.
+
+    ``catalog`` lists every instrument and its history span, filtered by
+    ``category`` (stocks, forex, crypto, etf, commodity, index, options,
+    futures, economics, bonds). ``datasets`` lists one row per dataset and
+    symbol, filtered by ``dataset``. ``reference`` lists the reference datasets,
+    ``vault_meta`` describes the vault's shape, and ``options_underlyings``
+    lists every underlying with listed options.
+
+    ``category`` applies only to ``catalog`` and ``dataset`` only to
+    ``datasets``; supplying either elsewhere is an error rather than ignored.
+    """
+    supplied = {"category": category, "dataset": dataset}
+    accepted = _REFERENCE_FILTERS[resource]
+    for name, value in supplied.items():
+        if value is not None and name != accepted:
+            allowed = f"only {accepted!r}" if accepted else "no filters"
+            raise ValueError(f"resource {resource!r} does not accept {name!r}; it takes {allowed}")
+
+    kwargs = {accepted: supplied[accepted]} if accepted and supplied[accepted] else {}
+    return await _call_upstream(
+        f"reference {resource}",
+        getattr(get_client(), resource),
+        **kwargs,
     )
 
 
