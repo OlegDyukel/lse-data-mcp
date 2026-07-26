@@ -36,6 +36,17 @@ silently dropped.
 | `get_insider_transactions` | Reported insider transactions | `symbol`, `transaction_type`, `start`, `end`, `limit`, `order` |
 | `get_dividends` | Dividend events | `symbol`, `start`, `end`, `limit`, `order` |
 | `get_economic_calendar` | Scheduled or released economic events | `region`, `event`, `start`, `end`, `released_only`, `limit`, `order` |
+| `get_reference` | Vault discovery: instruments, datasets, timeframes | `resource`, `category`, `dataset` |
+
+`get_reference` groups five discovery endpoints — `catalog`, `datasets`, `reference`,
+`vault_meta`, `options_underlyings` — behind one `resource` argument, because they take
+almost no arguments between them. `category` applies only to `catalog` and `dataset` only to
+`datasets`; passing either to a resource that ignores it is an **error, not a silent no-op**,
+so a grouped tool can never quietly drop a filter you meant. Data tools stay one-to-one with
+their SDK method, where every argument is always meaningful.
+
+`get_reference("catalog")` covers 22,000+ instruments, so expect `truncated: true` unless you
+filter by `category`.
 
 Each call defaults to at most 200 rows. The upstream API caps a single interactive call at 5,000
 rows; use `start` and `end` to request narrower windows.
