@@ -463,6 +463,28 @@ async def test_get_reference_passes_datasets_filter(fake_client: FakeClient) -> 
 
 
 @pytest.mark.anyio
+async def test_get_reference_rejects_an_unknown_dataset(fake_client: FakeClient) -> None:
+    """An unmatchable dataset must not look like a valid one holding no rows.
+
+    ``reference`` and ``datasets`` both call their vocabulary "dataset" but do not
+    share one, so feeding a name from the first into the second is an easy mistake
+    that upstream answers with an empty result.
+    """
+    with pytest.raises(ValueError, match="dividends"):
+        await tools.get_reference("datasets", dataset="dividends")  # type: ignore[arg-type]
+
+    assert fake_client.calls == []
+
+
+@pytest.mark.anyio
+async def test_get_reference_unknown_dataset_error_names_the_valid_set(
+    fake_client: FakeClient,
+) -> None:
+    with pytest.raises(ValueError, match="stocks"):
+        await tools.get_reference("datasets", dataset="nonsense_xyz")  # type: ignore[arg-type]
+
+
+@pytest.mark.anyio
 @pytest.mark.parametrize(
     ("resource", "kwargs"),
     [
