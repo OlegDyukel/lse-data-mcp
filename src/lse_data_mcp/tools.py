@@ -4,7 +4,7 @@ import functools
 import json
 from collections.abc import Callable
 from datetime import datetime
-from typing import Any, Literal, NotRequired, TypedDict, cast
+from typing import Any, Literal, NotRequired, TypedDict, cast, get_args
 
 from anyio import to_thread
 from lse import LSEError
@@ -39,6 +39,34 @@ ReferenceResource = Literal[
     "vault_meta",
     "options_underlyings",
 ]
+
+# The asset classes vault_meta reports under "datasets". Held locally so an
+# unknown name costs no API call, and because upstream answers one with an empty
+# result rather than an error: indistinguishable from a valid class holding no
+# rows. The trap is that get_reference("reference") calls its own vocabulary
+# "dataset" too — dividends, insider_trades, options_flow — and the two do not
+# overlap, so a name carried from one to the other silently returns nothing.
+Dataset = Literal[
+    "bond_futures",
+    "bonds",
+    "commodity",
+    "corporate_bonds",
+    "credit_indices",
+    "crypto",
+    "currency_index",
+    "economics",
+    "etf",
+    "futures",
+    "fx",
+    "fx_derivatives",
+    "index",
+    "interest_rates",
+    "options",
+    "sovereign_yields",
+    "stocks",
+    "volatility",
+]
+_DATASETS: frozenset[str] = frozenset(get_args(Dataset))
 
 # The filter each resource accepts, if any. Anything else is refused rather than
 # dropped, so a grouped tool cannot silently ignore an argument the caller meant.
@@ -328,7 +356,7 @@ async def get_dividends(
 async def get_reference(
     resource: ReferenceResource,
     category: str | None = None,
-    dataset: str | None = None,
+    dataset: Dataset | None = None,
 ) -> ToolResponse:
     """Return vault discovery data: what instruments, datasets and timeframes exist.
 
@@ -348,6 +376,13 @@ async def get_reference(
         if value is not None and name != accepted:
             allowed = f"only {accepted!r}" if accepted else "no filters"
             raise ValueError(f"resource {resource!r} does not accept {name!r}; it takes {allowed}")
+
+    if dataset is not None and dataset not in _DATASETS:
+        raise ValueError(
+            f"dataset {dataset!r} is not a known asset class; expected one of "
+            f"{', '.join(sorted(_DATASETS))}. Note that the dataset names from "
+            f"get_reference('reference') are a different vocabulary and are not accepted here."
+        )
 
     kwargs = {accepted: supplied[accepted]} if accepted and supplied[accepted] else {}
     return await _call_upstream(
