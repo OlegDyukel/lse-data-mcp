@@ -89,7 +89,7 @@ class ToolResponse(TypedDict):
     rows: list[dict[str, Any]]
     row_count: int
     truncated: bool
-    note: NotRequired[str]
+    note: NotRequired[str | None]
 
 
 def _validate_symbol(symbol: str) -> str:
