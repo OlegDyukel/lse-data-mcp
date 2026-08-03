@@ -320,6 +320,7 @@ async def test_truncation_note_tells_the_model_how_to_narrow(
 
     note = (await tools.get_candles("AAPL"))["note"]
 
+    assert note is not None
     assert "start" in note and "end" in note, "the note must say how to narrow the request"
     assert "limit" in note
 

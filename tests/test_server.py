@@ -26,6 +26,17 @@ async def test_server_registers_the_read_only_tool_surface() -> None:
         assert tool.annotations.openWorldHint is True
 
 
+@pytest.mark.anyio
+async def test_tool_output_schema_allows_fastmcp_optional_note_default() -> None:
+    """FastMCP serializes an omitted optional output field as ``None``."""
+    registered = await server.mcp.list_tools()
+
+    for tool in registered:
+        assert tool.outputSchema is not None
+        note_schema = tool.outputSchema["properties"]["note"]
+        assert {"type": "null"} in note_schema["anyOf"]
+
+
 def test_every_tool_is_registered_as_a_coroutine() -> None:
     """FastMCP awaits async tools and calls sync ones inline, stalling the loop."""
     tools = server.mcp._tool_manager.list_tools()
