@@ -49,6 +49,21 @@ class FakeClient:
     def bond_yields(self, *args: Any, **kwargs: Any) -> list[dict[str, Any]]:
         return self._record("bond_yields", *args, **kwargs)
 
+    def series(self, *args: Any, **kwargs: Any) -> list[dict[str, Any]]:
+        return self._record("series", *args, **kwargs)
+
+    def options(self, *args: Any, **kwargs: Any) -> list[dict[str, Any]]:
+        return self._record("options", *args, **kwargs)
+
+    def option_candles(self, *args: Any, **kwargs: Any) -> list[dict[str, Any]]:
+        return self._record("option_candles", *args, **kwargs)
+
+    def options_flow(self, *args: Any, **kwargs: Any) -> list[dict[str, Any]]:
+        return self._record("options_flow", *args, **kwargs)
+
+    def financial_reports(self, *args: Any, **kwargs: Any) -> list[dict[str, Any]]:
+        return self._record("financial_reports", *args, **kwargs)
+
     def economic_calendar(self, *args: Any, **kwargs: Any) -> list[dict[str, Any]]:
         return self._record("economic_calendar", *args, **kwargs)
 
@@ -387,6 +402,7 @@ async def test_every_windowed_tool_validates_its_dates(fake_client: FakeClient) 
         tools.get_splits,
         tools.get_cot,
         tools.get_bond_yields,
+        tools.get_financial_reports,
     ):
         with pytest.raises(ValueError, match="ISO 8601"):
             await tool("AAPL", start="01/01/2026")
@@ -597,5 +613,314 @@ async def test_series_tools_reject_an_out_of_range_limit(
 ) -> None:
     with pytest.raises(ValueError, match="limit must be between"):
         await getattr(tools, tool_name)("US10Y", limit=tools.MAX_ROWS + 1)
+
+    assert fake_client.calls == []
+
+
+@pytest.mark.anyio
+async def test_get_financial_reports_maps_filters(fake_client: FakeClient) -> None:
+    result = await tools.get_financial_reports(
+        "AAPL",
+        report_type="income",
+        period="Q1",
+        start="2026-01-01",
+        end="2026-06-30",
+        order="asc",
+        limit=5,
+    )
+
+    assert result["rows"] == [{"source": "financial_reports"}]
+    assert fake_client.calls == [
+        (
+            "financial_reports",
+            ("AAPL",),
+            {
+                "report_type": "income",
+                "period": "Q1",
+                "start": "2026-01-01",
+                "end": "2026-06-30",
+                "order": "asc",
+                "limit": 5,
+            },
+        )
+    ]
+
+
+@pytest.mark.anyio
+async def test_get_financial_reports_passes_no_filters_when_none_are_given(
+    fake_client: FakeClient,
+) -> None:
+    """An omitted report_type or period must mean "every one", not a default guess."""
+    await tools.get_financial_reports()
+
+    name, args, kwargs = fake_client.calls[0]
+    assert name == "financial_reports"
+    assert args == (None,)
+    assert kwargs["report_type"] is None
+    assert kwargs["period"] is None
+
+
+@pytest.mark.anyio
+async def test_get_financial_reports_defaults_to_a_smaller_page(
+    fake_client: FakeClient,
+) -> None:
+    """A statement row dwarfs a candle, so the shared 200 default would truncate."""
+    await tools.get_financial_reports("AAPL")
+
+    assert fake_client.calls[0][2]["limit"] == tools.FINANCIAL_REPORT_LIMIT
+    assert tools.FINANCIAL_REPORT_LIMIT < 200
+
+
+@pytest.mark.anyio
+async def test_get_financial_reports_rejects_a_blank_symbol(fake_client: FakeClient) -> None:
+    with pytest.raises(ValueError, match="symbol must not be empty"):
+        await tools.get_financial_reports("   ")
+
+    assert fake_client.calls == []
+
+
+@pytest.mark.anyio
+async def test_get_financial_reports_rejects_an_out_of_range_limit(
+    fake_client: FakeClient,
+) -> None:
+    with pytest.raises(ValueError, match="limit must be between"):
+        await tools.get_financial_reports("AAPL", limit=tools.MAX_ROWS + 1)
+
+    assert fake_client.calls == []
+
+
+@pytest.mark.anyio
+async def test_get_financial_reports_truncates_oversized_statements(
+    fake_client: FakeClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The whole reason for the lower default: one row can fill a response."""
+    statement = {"data": {f"line_item_{n}": n for n in range(400)}}
+    fake_client.rows = [dict(statement) for _ in range(10)]
+    monkeypatch.setattr(tools, "get_max_response_bytes", lambda: 4096)
+
+    result = await tools.get_financial_reports("AAPL")
+
+    assert result["truncated"] is True
+    assert result["row_count"] < 10
+    note = result["note"]
+    assert note is not None
+    assert "narrow the window" in note.lower()
+
+
+@pytest.mark.anyio
+async def test_get_options_maps_filters(fake_client: FakeClient) -> None:
+    result = await tools.get_options(
+        "apple", option_type="call", expiry="2026-06-19", max_dte=30, limit=50
+    )
+
+    assert result["rows"] == [{"source": "options"}]
+    assert fake_client.calls == [
+        (
+            "options",
+            ("apple",),
+            {
+                "type": "call",
+                "expiry": "2026-06-19",
+                "strike": None,
+                "min_dte": None,
+                "max_dte": 30,
+                "limit": 50,
+            },
+        )
+    ]
+
+
+@pytest.mark.anyio
+async def test_get_options_sends_a_single_strike_unchanged(fake_client: FakeClient) -> None:
+    await tools.get_options("NVDA", strike=205)
+
+    assert fake_client.calls[0][2]["strike"] == 205
+
+
+@pytest.mark.anyio
+async def test_get_options_folds_a_strike_window_into_the_upstream_tuple(
+    fake_client: FakeClient,
+) -> None:
+    """Two explicit scalars in the schema, one polymorphic argument upstream."""
+    await tools.get_options("NVDA", strike_min=180, strike_max=220)
+
+    assert fake_client.calls[0][2]["strike"] == (180, 220)
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("kwargs", "message"),
+    [
+        ({"strike": 205, "strike_min": 180}, "but not both"),
+        ({"strike": 205, "strike_max": 220}, "but not both"),
+        ({"strike_min": 180}, "needs both"),
+        ({"strike_max": 220}, "needs both"),
+        ({"strike_min": 220, "strike_max": 180}, "must not exceed"),
+    ],
+)
+async def test_get_options_rejects_an_ambiguous_strike(
+    fake_client: FakeClient, kwargs: dict[str, Any], message: str
+) -> None:
+    """An argument that could mean two things is refused, never quietly picked."""
+    with pytest.raises(ValueError, match=message):
+        await tools.get_options("NVDA", **kwargs)
+
+    assert fake_client.calls == []
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("kwargs", "message"),
+    [
+        ({"min_dte": -1}, "min_dte must not be negative"),
+        ({"max_dte": -5}, "max_dte must not be negative"),
+        ({"min_dte": 30, "max_dte": 7}, "min_dte must not exceed max_dte"),
+    ],
+)
+async def test_get_options_rejects_an_impossible_expiry_window(
+    fake_client: FakeClient, kwargs: dict[str, Any], message: str
+) -> None:
+    with pytest.raises(ValueError, match=message):
+        await tools.get_options("NVDA", **kwargs)
+
+    assert fake_client.calls == []
+
+
+@pytest.mark.anyio
+async def test_get_option_candles_accepts_an_osi_ticker(fake_client: FakeClient) -> None:
+    await tools.get_option_candles("AAPL260612C00205000", start="2026-06-01")
+
+    name, args, kwargs = fake_client.calls[0]
+    assert (name, args) == ("option_candles", ("AAPL260612C00205000",))
+    assert kwargs["strike"] is None
+    assert kwargs["expiry"] is None
+    assert kwargs["type"] is None
+
+
+@pytest.mark.anyio
+async def test_get_option_candles_accepts_contract_terms(fake_client: FakeClient) -> None:
+    await tools.get_option_candles(
+        "AAPL", strike=205, expiry="2026-06-12", option_type="call", limit=10
+    )
+
+    assert fake_client.calls == [
+        (
+            "option_candles",
+            ("AAPL",),
+            {
+                "strike": 205,
+                "expiry": "2026-06-12",
+                "type": "call",
+                "start": None,
+                "end": None,
+                "order": "asc",
+                "limit": 10,
+            },
+        )
+    ]
+
+
+@pytest.mark.anyio
+async def test_get_options_flow_sweeps_the_tape_without_an_underlying(
+    fake_client: FakeClient,
+) -> None:
+    """Omitting the underlying is the documented way to scan every name."""
+    await tools.get_options_flow(min_premium=250_000, option_type="put", max_dte=7)
+
+    name, args, kwargs = fake_client.calls[0]
+    assert (name, args) == ("options_flow", (None,))
+    assert kwargs["min_premium"] == 250_000
+    assert kwargs["type"] == "put"
+    assert kwargs["max_dte"] == 7
+
+
+@pytest.mark.anyio
+async def test_get_options_flow_rejects_a_negative_expiry_window(
+    fake_client: FakeClient,
+) -> None:
+    with pytest.raises(ValueError, match="max_dte must not be negative"):
+        await tools.get_options_flow(max_dte=-1)
+
+    assert fake_client.calls == []
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("tool_name", "kwargs"),
+    [
+        ("get_options", {"expiry": "19/06/2026"}),
+        ("get_option_candles", {"expiry": "19/06/2026"}),
+        ("get_option_candles", {"start": "01/06/2026"}),
+        ("get_options_flow", {"expiry": "19/06/2026"}),
+        ("get_options_flow", {"end": "01/06/2026"}),
+    ],
+)
+async def test_options_tools_reject_a_malformed_date(
+    fake_client: FakeClient, tool_name: str, kwargs: dict[str, Any]
+) -> None:
+    """An expiry is a date too, so a bad one costs no API call."""
+    with pytest.raises(ValueError, match="ISO 8601"):
+        await getattr(tools, tool_name)("AAPL", **kwargs)
+
+    assert fake_client.calls == []
+
+
+@pytest.mark.anyio
+async def test_get_series_resolves_the_class_from_the_catalog(fake_client: FakeClient) -> None:
+    """The point of the generic accessor: no dataset needed for a known symbol."""
+    result = await tools.get_series("cpi_yoy", start="1980-01-01", limit=30)
+
+    assert result["rows"] == [{"source": "series"}]
+    assert fake_client.calls == [
+        (
+            "series",
+            ("cpi_yoy",),
+            {
+                "dataset": None,
+                "start": "1980-01-01",
+                "end": None,
+                "order": "asc",
+                "limit": 30,
+            },
+        )
+    ]
+
+
+@pytest.mark.anyio
+async def test_get_series_passes_a_dataset_when_one_disambiguates(
+    fake_client: FakeClient,
+) -> None:
+    await tools.get_series("fdtr", dataset="economics")
+
+    assert fake_client.calls[0][2]["dataset"] == "economics"
+
+
+@pytest.mark.anyio
+async def test_get_series_rejects_an_unknown_dataset(fake_client: FakeClient) -> None:
+    """Upstream answers an unknown class with no rows, indistinguishable from empty."""
+    with pytest.raises(ValueError, match="not a known asset class"):
+        await tools.get_series("cpi_yoy", dataset="dividends")  # type: ignore[arg-type]
+
+    assert fake_client.calls == []
+
+
+@pytest.mark.anyio
+async def test_get_series_and_get_reference_share_one_dataset_vocabulary(
+    fake_client: FakeClient,
+) -> None:
+    """Both reject the reference-dataset names, so a symbol cannot silently vanish."""
+    with pytest.raises(ValueError, match="a different vocabulary"):
+        await tools.get_series("cpi_yoy", dataset="insider_trades")  # type: ignore[arg-type]
+
+    with pytest.raises(ValueError, match="a different vocabulary"):
+        await tools.get_reference("datasets", dataset="insider_trades")  # type: ignore[arg-type]
+
+    assert fake_client.calls == []
+
+
+@pytest.mark.anyio
+async def test_get_series_rejects_a_blank_symbol(fake_client: FakeClient) -> None:
+    with pytest.raises(ValueError, match="symbol must not be empty"):
+        await tools.get_series("  ")
 
     assert fake_client.calls == []

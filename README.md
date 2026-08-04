@@ -38,6 +38,11 @@ silently dropped.
 | `get_splits` | Stock split events | `symbol`, `start`, `end`, `limit`, `order` |
 | `get_cot` | CFTC Commitments of Traders positioning | `symbol`, `start`, `end`, `limit`, `order` |
 | `get_bond_yields` | Government bond yield history per tenor | `symbol`, `start`, `end`, `limit`, `order` |
+| `get_financial_reports` | Income, balance sheet and cash flow statements | `symbol`, `report_type`, `period`, `start`, `end`, `limit`, `order` |
+| `get_options` | Current option chain for an underlying | `underlying`, `option_type`, `expiry`, `strike`, `strike_min`, `strike_max`, `min_dte`, `max_dte`, `limit` |
+| `get_option_candles` | One-minute premium OHLC for one contract | `contract`, `strike`, `expiry`, `option_type`, `start`, `end`, `limit`, `order` |
+| `get_options_flow` | Option prints (time and sales), trailing week | `underlying`, `option_type`, `min_premium`, `expiry`, `max_dte`, `start`, `end`, `limit`, `order` |
+| `get_series` | One `(date, value)` series: economics, bond tenors | `symbol`, `dataset`, `start`, `end`, `limit`, `order` |
 | `get_economic_calendar` | Scheduled or released economic events | `region`, `event`, `start`, `end`, `released_only`, `limit`, `order` |
 | `get_reference` | Vault discovery: instruments, datasets, timeframes | `resource`, `category`, `dataset` |
 
@@ -53,6 +58,10 @@ filter by `category`.
 
 Each call defaults to at most 200 rows. The upstream API caps a single interactive call at 5,000
 rows; use `start` and `end` to request narrower windows.
+
+`get_financial_reports` defaults to 20 instead, because each row carries a whole statement in its
+`data` field and is far larger than a candle or a dividend. Twenty rows is five years of quarterly
+reports, or twenty years of annual ones.
 
 `start` and `end` accept an ISO 8601 date or timestamp (`2026-01-01`, `2026-01-01T14:30:00Z`).
 Anything else is rejected locally, so a malformed date costs no API call and no quota.
@@ -243,8 +252,19 @@ during an active limit and lets the MCP client decide when to retry.
   up to 1,000,000 rows per download. Those bulk downloads are separate from, and not exposed by,
   this server.
 - The MCP surface is REST-only. Live WebSocket streaming and bulk downloads are out of scope.
-  Of the SDK's REST endpoints, options (`options`, `option_candles`, `options_flow`), company
-  financial statements, and the generic `economics` and `series` accessors are not yet exposed.
+  Every other SDK REST endpoint has a tool, with one deliberate exception. The SDK's `economics`
+  is a wrapper with no endpoint of its own: without a symbol it returns `datasets("economics")`,
+  and with one it calls `series(symbol, dataset="economics")`. Both are already reachable, as
+  `get_reference('datasets', dataset='economics')` and `get_series(symbol, dataset='economics')`,
+  so a separate tool would only give an agent two names for one operation.
+- `get_options` returns a live snapshot that refreshes while the market is open, not history, and
+  carries no timestamp of its own. A whole chain on a liquid name runs to thousands of contracts,
+  so filter by expiry, strike or days-to-expiry rather than raising `limit`.
+- `get_options_flow` covers the trailing week only. Older prints are served as one-minute bars by
+  `get_option_candles`, whose bars are option premium, not the underlying's price.
+- The provider does not document which date field `get_financial_reports` filters on with `start`
+  and `end` — the period end, the fiscal period, or the filing date. Until that is confirmed,
+  prefer `period` for selecting a fiscal period and treat a date window as approximate.
 - `get_cot` reports a weekly survey, not a live position: the CFTC publishes on Friday for the
   preceding Tuesday, so the newest row lags the market by several days.
 - `get_bond_yields` returns yields in percent, not prices. They move inversely to price, so a
