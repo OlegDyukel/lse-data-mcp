@@ -15,6 +15,9 @@ async def test_server_registers_the_read_only_tool_surface() -> None:
         "get_fundamentals",
         "get_insider_transactions",
         "get_dividends",
+        "get_splits",
+        "get_cot",
+        "get_bond_yields",
         "get_economic_calendar",
         "get_reference",
     }

@@ -7,13 +7,16 @@ from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
 from lse_data_mcp.tools import (
+    get_bond_yields,
     get_candles,
     get_company_profile,
+    get_cot,
     get_dividends,
     get_economic_calendar,
     get_fundamentals,
     get_insider_transactions,
     get_reference,
+    get_splits,
 )
 
 mcp = FastMCP(
@@ -31,6 +34,9 @@ _TOOLS: tuple[Callable[..., Any], ...] = (
     get_fundamentals,
     get_insider_transactions,
     get_dividends,
+    get_splits,
+    get_cot,
+    get_bond_yields,
     get_economic_calendar,
     get_reference,
 )

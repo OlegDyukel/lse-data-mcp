@@ -35,6 +35,9 @@ silently dropped.
 | `get_fundamentals` | Snapshot company fundamentals | `symbol`, `limit` |
 | `get_insider_transactions` | Reported insider transactions | `symbol`, `transaction_type`, `start`, `end`, `limit`, `order` |
 | `get_dividends` | Dividend events | `symbol`, `start`, `end`, `limit`, `order` |
+| `get_splits` | Stock split events | `symbol`, `start`, `end`, `limit`, `order` |
+| `get_cot` | CFTC Commitments of Traders positioning | `symbol`, `start`, `end`, `limit`, `order` |
+| `get_bond_yields` | Government bond yield history per tenor | `symbol`, `start`, `end`, `limit`, `order` |
 | `get_economic_calendar` | Scheduled or released economic events | `region`, `event`, `start`, `end`, `released_only`, `limit`, `order` |
 | `get_reference` | Vault discovery: instruments, datasets, timeframes | `resource`, `category`, `dataset` |
 
@@ -239,8 +242,15 @@ during an active limit and lets the MCP client decide when to retry.
 - The provider currently documents a free-plan allowance of 10 databank downloads per hour, with
   up to 1,000,000 rows per download. Those bulk downloads are separate from, and not exposed by,
   this server.
-- The initial MCP surface is REST-only. Live WebSocket streaming, bulk downloads, stock splits,
-  options, and other SDK datasets are out of scope.
+- The MCP surface is REST-only. Live WebSocket streaming and bulk downloads are out of scope.
+  Of the SDK's REST endpoints, options (`options`, `option_candles`, `options_flow`), company
+  financial statements, and the generic `economics` and `series` accessors are not yet exposed.
+- `get_cot` reports a weekly survey, not a live position: the CFTC publishes on Friday for the
+  preceding Tuesday, so the newest row lags the market by several days.
+- `get_bond_yields` returns yields in percent, not prices. They move inversely to price, so a
+  row's `high` is the day's highest yield and therefore its lowest price.
+- A stock split rebases historical prices and share counts. Check `get_splits` before comparing
+  any per-share figure across a window that contains one.
 - Market data may be delayed, incomplete, corrected, or unavailable. It is not investment advice.
 
 ## Repository and data-safety policy
