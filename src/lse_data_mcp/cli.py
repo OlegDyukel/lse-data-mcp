@@ -81,21 +81,37 @@ def _logout() -> int:
     return 0
 
 
+_STORED_KEY_REPORT = {
+    credentials.CredentialStatus.STORED: "yes",
+    credentials.CredentialStatus.ABSENT: "no",
+    credentials.CredentialStatus.NO_STORE: "unknown - there is no credential store to ask",
+    credentials.CredentialStatus.INACCESSIBLE: (
+        "unknown - this process cannot reach the credential store"
+    ),
+}
+
+
 def _status() -> int:
     from_environment = bool(os.getenv("LSE_API_KEY", "").strip())
-    stored = credentials.get_stored_api_key() is not None
+    credential = credentials.read_credential()
+    stored = credential.api_key is not None
 
     if from_environment:
         source = "the LSE_API_KEY environment variable"
     elif stored:
         source = "this system's credential store"
     else:
-        source = "nowhere - no API key is configured"
+        source = "nowhere - no API key is available"
 
     print(f"API key source: {source}")
     print(f"Credential store: {credentials.describe_backend()}")
-    print(f"Key stored there: {'yes' if stored else 'no'}")
+    print(f"Key stored there: {_STORED_KEY_REPORT[credential.status]}")
     print(f"LSE_API_KEY set: {'yes' if from_environment else 'no'}")
+
+    unavailable = credentials.describe_unavailable(credential.status)
+    if unavailable and not from_environment:
+        print(f"\n{unavailable}")
+        print("Set LSE_API_KEY in this process's environment to supply the key directly.")
     return 0 if from_environment or stored else 1
 
 

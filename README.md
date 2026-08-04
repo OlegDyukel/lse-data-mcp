@@ -132,6 +132,22 @@ the machine.
 server install has no credential store to read. Those hosts fall through to `LSE_API_KEY` rather
 than failing to start; set it in the environment there.
 
+### When the server cannot find your key
+
+`lse-data-mcp status` distinguishes three outcomes, because they need different fixes:
+
+| `Key stored there:` | What it means | What to do |
+| --- | --- | --- |
+| `no` | The store answered, and holds no key | Run `lse-data-mcp login` |
+| `unknown - there is no credential store to ask` | Nothing to read on this host | Set `LSE_API_KEY` |
+| `unknown - this process cannot reach the credential store` | A key may be stored, but this process is not allowed to read it | Grant the process access, or set `LSE_API_KEY` |
+
+The third case is what a sandboxed agent runner hits: the server runs in a restricted process,
+macOS Keychain refuses it, and a key you stored earlier is genuinely there but unreadable. The
+server reports this as unknown rather than as a missing key, so `login` is not suggested when
+re-running it could not help. Grant the host process credential-store access, or pass the key
+through `LSE_API_KEY` in the MCP client's environment configuration for that server.
+
 `.env.example` is a reference only. The server deliberately does not load `.env` files: a `.env`
 is plain text on disk, which is what the credential store exists to avoid.
 

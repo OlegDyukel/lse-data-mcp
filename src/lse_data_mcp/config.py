@@ -3,7 +3,7 @@
 import math
 import os
 
-from lse_data_mcp.credentials import get_stored_api_key
+from lse_data_mcp.credentials import describe_unavailable, read_credential
 
 DEFAULT_TIMEOUT_SECONDS = 60.0
 
@@ -28,19 +28,34 @@ def get_api_key_if_set() -> str | None:
     from_environment = os.getenv("LSE_API_KEY", "").strip()
     if from_environment:
         return from_environment
-    return get_stored_api_key()
+    return read_credential().api_key
 
 
 def get_api_key() -> str:
     """Return the configured LSE API key without logging or persisting it."""
     api_key = get_api_key_if_set()
     if not api_key:
-        raise ConfigurationError(
-            "No London Strategic Edge API key is configured. Run 'lse-data-mcp login' to "
-            "store your own key in this system's credential store, or set LSE_API_KEY in "
-            "the MCP client's environment configuration."
-        )
+        raise ConfigurationError(_missing_api_key_message())
     return api_key
+
+
+def _missing_api_key_message() -> str:
+    """Explain what to do about a missing key, given why the store found none.
+
+    Telling someone to run ``login`` when the store is simply unreachable sends
+    them to re-do work that may already be done and cannot fix anything.
+    """
+    unavailable = describe_unavailable(read_credential().status)
+    if unavailable:
+        return (
+            f"No London Strategic Edge API key is available. {unavailable} "
+            "Set LSE_API_KEY in the MCP client's environment configuration."
+        )
+    return (
+        "No London Strategic Edge API key is configured. Run 'lse-data-mcp login' to "
+        "store your own key in this system's credential store, or set LSE_API_KEY in "
+        "the MCP client's environment configuration."
+    )
 
 
 def get_timeout_seconds() -> float:

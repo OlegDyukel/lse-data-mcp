@@ -3,9 +3,16 @@
 from typing import Any
 
 import pytest
-from keyring.errors import KeyringError, NoKeyringError, PasswordDeleteError, PasswordSetError
+from keyring.errors import (
+    KeyringError,
+    KeyringLocked,
+    NoKeyringError,
+    PasswordDeleteError,
+    PasswordSetError,
+)
 
 from lse_data_mcp import credentials
+from lse_data_mcp.credentials import CredentialStatus
 
 
 class FakeKeyring:
@@ -59,6 +66,9 @@ def fake_keyring(monkeypatch: pytest.MonkeyPatch) -> FakeKeyring:
 def test_read_returns_the_stored_key(fake_keyring: FakeKeyring) -> None:
     fake_keyring.stored = "  stored-key  "
 
+    assert credentials.read_credential() == credentials.Credential(
+        CredentialStatus.STORED, "stored-key"
+    )
     assert credentials.get_stored_api_key() == "stored-key"
     assert fake_keyring.calls == [
         ("get", credentials.KEYRING_SERVICE, credentials.KEYRING_USERNAME)
@@ -71,16 +81,62 @@ def test_read_treats_an_empty_entry_as_absent(
 ) -> None:
     fake_keyring.stored = stored
 
+    assert credentials.read_credential().status is CredentialStatus.ABSENT
     assert credentials.get_stored_api_key() is None
 
 
-def test_read_falls_through_when_the_host_has_no_credential_store(
+def test_a_host_with_no_credential_store_is_not_reported_as_an_absent_key(
     fake_keyring: FakeKeyring,
 ) -> None:
     """A headless Linux host must degrade to LSE_API_KEY, not fail to start."""
     fake_keyring.error = NoKeyringError("no backend")
 
+    assert credentials.read_credential() == credentials.Credential(CredentialStatus.NO_STORE, None)
     assert credentials.get_stored_api_key() is None
+
+
+def test_a_store_that_refuses_this_process_is_not_reported_as_an_absent_key(
+    fake_keyring: FakeKeyring,
+) -> None:
+    """A sandbox denied Keychain must not be told that no key was ever stored."""
+    fake_keyring.error = KeyringLocked("denied")
+
+    assert credentials.read_credential() == credentials.Credential(
+        CredentialStatus.INACCESSIBLE, None
+    )
+    assert credentials.get_stored_api_key() is None
+
+
+def test_an_unreachable_store_is_distinguished_from_an_empty_one(
+    fake_keyring: FakeKeyring,
+) -> None:
+    """The whole point: three outcomes, not two."""
+    fake_keyring.stored = None
+    assert credentials.describe_unavailable(credentials.read_credential().status) is None
+
+    fake_keyring.error = KeyringLocked("denied")
+    credentials.reset_cache()
+    inaccessible = credentials.describe_unavailable(credentials.read_credential().status)
+
+    fake_keyring.error = NoKeyringError("no backend")
+    credentials.reset_cache()
+    no_store = credentials.describe_unavailable(credentials.read_credential().status)
+
+    assert inaccessible is not None
+    assert no_store is not None
+    assert inaccessible != no_store
+
+
+def test_an_unreachable_store_never_repeats_the_backend_message(
+    fake_keyring: FakeKeyring,
+) -> None:
+    """Backend text can carry account names and paths, and this reaches clients."""
+    fake_keyring.error = KeyringLocked("/Users/someone/Library/Keychains/login.keychain-db")
+
+    reason = credentials.describe_unavailable(credentials.read_credential().status)
+
+    assert reason is not None
+    assert "someone" not in reason
 
 
 def test_read_is_cached_for_the_process_lifetime(fake_keyring: FakeKeyring) -> None:
@@ -119,7 +175,7 @@ def test_store_invalidates_the_cached_read(fake_keyring: FakeKeyring) -> None:
 def test_store_reports_an_unusable_credential_store(fake_keyring: FakeKeyring) -> None:
     fake_keyring.error = PasswordSetError("read only")
 
-    with pytest.raises(credentials.CredentialStoreError, match="no usable credential store"):
+    with pytest.raises(credentials.CredentialStoreError, match="cannot reach it"):
         credentials.store_api_key("new-key")
 
 
@@ -137,10 +193,10 @@ def test_delete_reports_when_there_was_nothing_to_remove(fake_keyring: FakeKeyri
     assert credentials.delete_stored_api_key() is False
 
 
-def test_delete_reports_an_unusable_credential_store(fake_keyring: FakeKeyring) -> None:
+def test_delete_reports_a_host_with_no_credential_store(fake_keyring: FakeKeyring) -> None:
     fake_keyring.error = NoKeyringError("no backend")
 
-    with pytest.raises(credentials.CredentialStoreError, match="no usable credential store"):
+    with pytest.raises(credentials.CredentialStoreError, match="no credential store"):
         credentials.delete_stored_api_key()
 
 
