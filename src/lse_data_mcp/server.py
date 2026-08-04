@@ -13,9 +13,14 @@ from lse_data_mcp.tools import (
     get_cot,
     get_dividends,
     get_economic_calendar,
+    get_financial_reports,
     get_fundamentals,
     get_insider_transactions,
+    get_option_candles,
+    get_options,
+    get_options_flow,
     get_reference,
+    get_series,
     get_splits,
 )
 
@@ -37,7 +42,12 @@ _TOOLS: tuple[Callable[..., Any], ...] = (
     get_splits,
     get_cot,
     get_bond_yields,
+    get_financial_reports,
+    get_options,
+    get_option_candles,
+    get_options_flow,
     get_economic_calendar,
+    get_series,
     get_reference,
 )
 

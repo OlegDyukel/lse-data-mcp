@@ -29,6 +29,16 @@ Timeframe = Literal[
     "1mo",
 ]
 Order = Literal["asc", "desc"]
+OptionType = Literal["call", "put"]
+
+# The three statements the provider documents. Closed vocabulary, so an enum in
+# the tool schema stops a wrong value before it costs an API call.
+ReportType = Literal["income", "balance", "cashflow"]
+
+# The provider documents "FY" and "a quarter like Q1" without enumerating the
+# rest. These five are the whole of that convention; if the vault ever serves a
+# period outside it, this becomes a plain string rather than gaining a member.
+ReportPeriod = Literal["FY", "Q1", "Q2", "Q3", "Q4"]
 
 # Discovery endpoints, grouped because they take no meaningful arguments between
 # them. Each name maps to the SDK method of the same name.
@@ -82,6 +92,12 @@ MAX_ROWS = 5_000
 _MAX_MESSAGE_CHARS = 300
 _MAX_ECHO_CHARS = 200
 
+# One financial statement is a whole nested object, so a row here is far larger
+# than a candle or a dividend and the usual 200 would truncate nearly every
+# call. Twenty rows is five years of quarterly reports, or twenty years of
+# annual ones, which answers most questions inside one response budget.
+FINANCIAL_REPORT_LIMIT = 20
+
 
 class ToolResponse(TypedDict):
     """Rows plus the metadata a caller needs to know whether it saw them all."""
@@ -113,6 +129,53 @@ def _validate_limit(limit: int) -> int:
     if not 1 <= limit <= MAX_ROWS:
         raise ValueError(f"limit must be between 1 and {MAX_ROWS:,}")
     return limit
+
+
+def _validate_dataset(dataset: Dataset | None) -> Dataset | None:
+    """Reject an unknown asset class locally, where upstream would return no rows."""
+    if dataset is not None and dataset not in _DATASETS:
+        raise ValueError(
+            f"dataset {dataset!r} is not a known asset class; expected one of "
+            f"{', '.join(sorted(_DATASETS))}. Note that the dataset names from "
+            f"get_reference('reference') are a different vocabulary and are not accepted here."
+        )
+    return dataset
+
+
+def _validate_days_to_expiry(min_dte: int | None, max_dte: int | None) -> None:
+    for field, value in (("min_dte", min_dte), ("max_dte", max_dte)):
+        if value is not None and value < 0:
+            raise ValueError(f"{field} must not be negative")
+    if min_dte is not None and max_dte is not None and min_dte > max_dte:
+        raise ValueError("min_dte must not exceed max_dte")
+
+
+def _resolve_strike(
+    strike: float | None,
+    strike_min: float | None,
+    strike_max: float | None,
+) -> float | tuple[float, float] | None:
+    """Collapse the two ways of naming strikes into the single upstream argument.
+
+    Upstream takes one strike or a ``(low, high)`` tuple in the same parameter.
+    A JSON tool schema cannot express that without a polymorphic field, which a
+    model reads wrongly often enough to matter, so the tool exposes one scalar
+    and one explicit window and rejects any combination that means two things.
+    """
+    if strike is not None and (strike_min is not None or strike_max is not None):
+        raise ValueError(
+            "pass strike for a single strike, or strike_min with strike_max for a window, "
+            "but not both"
+        )
+    if strike is not None:
+        return strike
+    if strike_min is None and strike_max is None:
+        return None
+    if strike_min is None or strike_max is None:
+        raise ValueError("a strike window needs both strike_min and strike_max")
+    if strike_min > strike_max:
+        raise ValueError("strike_min must not exceed strike_max")
+    return (strike_min, strike_max)
 
 
 def _validate_timestamp(field: str, value: str | None) -> str | None:
@@ -458,6 +521,217 @@ async def get_bond_yields(
     )
 
 
+async def get_financial_reports(
+    symbol: str | None = None,
+    report_type: ReportType | None = None,
+    period: ReportPeriod | None = None,
+    start: str | None = None,
+    end: str | None = None,
+    order: Order = "desc",
+    limit: int = FINANCIAL_REPORT_LIMIT,
+) -> ToolResponse:
+    """Return company financial statements, most recent first by default.
+
+    ``report_type`` selects the income statement, balance sheet or cash flow
+    statement; omitting it returns every type. ``period`` selects the full year
+    (``FY``) or a single quarter (``Q1`` through ``Q4``). Omit ``symbol`` for
+    every company.
+
+    Each row carries the whole statement in its ``data`` field, already parsed,
+    so rows are much larger here than for other tools and the default ``limit``
+    is correspondingly lower. Raise it only as far as a request needs; a wide
+    window will report ``truncated``.
+
+    Filter by ``report_type`` and ``period`` rather than reading one figure out
+    of an unfiltered result: income, balance and cash flow rows carry different
+    fields, and an annual row is not comparable with a quarterly one.
+    """
+    symbol = _validate_optional_symbol(symbol)
+    limit = _validate_limit(limit)
+    start = _validate_timestamp("start", start)
+    end = _validate_timestamp("end", end)
+    return await _call_upstream(
+        "financial reports",
+        get_client().financial_reports,
+        symbol,
+        report_type=report_type,
+        period=period,
+        start=start,
+        end=end,
+        order=order,
+        limit=limit,
+    )
+
+
+async def get_options(
+    underlying: str,
+    option_type: OptionType | None = None,
+    expiry: str | None = None,
+    strike: float | None = None,
+    strike_min: float | None = None,
+    strike_max: float | None = None,
+    min_dte: int | None = None,
+    max_dte: int | None = None,
+    limit: int = 200,
+) -> ToolResponse:
+    """Return the current option chain for an underlying, one row per contract.
+
+    Each row carries the latest traded price, implied volatility, greeks, and
+    today's volume and premium totals, plus its OSI ticker for drilling into
+    ``get_option_candles``. ``underlying`` accepts a ticker or a company name
+    ("AAPL", "apple", "Nvidia").
+
+    Narrow the chain with ``expiry`` (one date), ``strike`` (one strike) or
+    ``strike_min`` with ``strike_max`` (an inclusive window), and ``min_dte``
+    with ``max_dte`` (a days-to-expiry window). A whole chain on a liquid name
+    runs to thousands of contracts, so an unfiltered call will report
+    ``truncated``; filter rather than raising ``limit``.
+
+    This is a live snapshot, not history: it refreshes while the market is open
+    and carries no timestamp of its own.
+    """
+    underlying = _validate_symbol(underlying)
+    limit = _validate_limit(limit)
+    expiry = _validate_timestamp("expiry", expiry)
+    _validate_days_to_expiry(min_dte, max_dte)
+    return await _call_upstream(
+        "options chain",
+        get_client().options,
+        underlying,
+        type=option_type,
+        expiry=expiry,
+        strike=_resolve_strike(strike, strike_min, strike_max),
+        min_dte=min_dte,
+        max_dte=max_dte,
+        limit=limit,
+    )
+
+
+async def get_option_candles(
+    contract: str,
+    strike: float | None = None,
+    expiry: str | None = None,
+    option_type: OptionType | None = None,
+    start: str | None = None,
+    end: str | None = None,
+    order: Order = "asc",
+    limit: int = 200,
+) -> ToolResponse:
+    """Return one-minute premium OHLC history for a single option contract.
+
+    Each bar carries volume, premium and greeks averaged over the minute.
+
+    Name the contract either way. Pass a full OSI ticker alone, as
+    ``contract="AAPL260612C00205000"``, or pass the underlying with the
+    contract's terms, as ``contract="AAPL"`` with ``strike=205``,
+    ``expiry="2026-06-12"`` and ``option_type="call"``. Get an OSI ticker from
+    ``get_options``.
+
+    Bars are premium, not the underlying's price. The trailing days are folded
+    from live prints and agree with ``get_options_flow``; older history comes
+    from the compacted archive.
+    """
+    contract = _validate_symbol(contract)
+    limit = _validate_limit(limit)
+    expiry = _validate_timestamp("expiry", expiry)
+    start = _validate_timestamp("start", start)
+    end = _validate_timestamp("end", end)
+    return await _call_upstream(
+        "option candles",
+        get_client().option_candles,
+        contract,
+        strike=strike,
+        expiry=expiry,
+        type=option_type,
+        start=start,
+        end=end,
+        order=order,
+        limit=limit,
+    )
+
+
+async def get_options_flow(
+    underlying: str | None = None,
+    option_type: OptionType | None = None,
+    min_premium: float | None = None,
+    expiry: str | None = None,
+    max_dte: int | None = None,
+    start: str | None = None,
+    end: str | None = None,
+    order: Order = "desc",
+    limit: int = 200,
+) -> ToolResponse:
+    """Return recent option prints - time and sales - newest first by default.
+
+    One row per trade, with its premium, implied volatility and greeks as at
+    the print. Omit ``underlying`` to sweep the whole tape, which is what
+    ``min_premium`` is for: every print above $250,000 across all names.
+
+    This covers the trailing week only. For anything older, use
+    ``get_option_candles``, which serves the same trades as one-minute bars.
+    """
+    underlying = _validate_optional_symbol(underlying)
+    limit = _validate_limit(limit)
+    expiry = _validate_timestamp("expiry", expiry)
+    start = _validate_timestamp("start", start)
+    end = _validate_timestamp("end", end)
+    _validate_days_to_expiry(None, max_dte)
+    return await _call_upstream(
+        "options flow",
+        get_client().options_flow,
+        underlying,
+        type=option_type,
+        min_premium=min_premium,
+        expiry=expiry,
+        max_dte=max_dte,
+        start=start,
+        end=end,
+        order=order,
+        limit=limit,
+    )
+
+
+async def get_series(
+    symbol: str,
+    dataset: Dataset | None = None,
+    start: str | None = None,
+    end: str | None = None,
+    order: Order = "asc",
+    limit: int = 200,
+) -> ToolResponse:
+    """Return one ``(date, value)`` observation series from the vault.
+
+    This is the general series accessor: any macro economics series, any bond
+    yield tenor, and any series-shaped dataset added later. The asset class is
+    resolved from the catalog, so ``get_series('cpi_yoy')`` for US inflation and
+    ``get_series('US10Y')`` for the ten-year yield both work without saying
+    which is which. Supply ``dataset`` only to disambiguate a symbol that two
+    classes both claim.
+
+    Use ``get_reference('datasets', dataset='economics')`` to list the economics
+    series that exist, with each one's observation count and span.
+
+    For a bond tenor this returns one value per date. ``get_bond_yields`` serves
+    the same tenors as daily open, high, low and close, so prefer that when the
+    intraday range matters and this when a single series is what you want.
+    """
+    symbol = _validate_symbol(symbol)
+    _validate_dataset(dataset)
+    limit = _validate_limit(limit)
+    start = _validate_timestamp("start", start)
+    end = _validate_timestamp("end", end)
+    return await _call_upstream(
+        "series",
+        get_client().series,
+        symbol,
+        dataset=dataset,
+        start=start,
+        end=end,
+        order=order,
+        limit=limit,
+    )
+
+
 async def get_reference(
     resource: ReferenceResource,
     category: str | None = None,
@@ -482,12 +756,7 @@ async def get_reference(
             allowed = f"only {accepted!r}" if accepted else "no filters"
             raise ValueError(f"resource {resource!r} does not accept {name!r}; it takes {allowed}")
 
-    if dataset is not None and dataset not in _DATASETS:
-        raise ValueError(
-            f"dataset {dataset!r} is not a known asset class; expected one of "
-            f"{', '.join(sorted(_DATASETS))}. Note that the dataset names from "
-            f"get_reference('reference') are a different vocabulary and are not accepted here."
-        )
+    _validate_dataset(dataset)
 
     kwargs = {accepted: supplied[accepted]} if accepted and supplied[accepted] else {}
     return await _call_upstream(
