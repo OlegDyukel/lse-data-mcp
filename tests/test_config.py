@@ -24,7 +24,11 @@ def test_get_api_key_falls_back_to_the_credential_store(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.delenv("LSE_API_KEY", raising=False)
-    monkeypatch.setattr(config, "get_stored_api_key", lambda: "stored-key")
+    monkeypatch.setattr(
+        config,
+        "read_credential",
+        lambda: credentials.Credential(credentials.CredentialStatus.STORED, "stored-key"),
+    )
 
     assert get_api_key() == "stored-key"
 
@@ -34,7 +38,11 @@ def test_the_environment_wins_over_the_credential_store(
 ) -> None:
     """A host that injects the key directly stays authoritative over a past login."""
     monkeypatch.setenv("LSE_API_KEY", "environment-key")
-    monkeypatch.setattr(config, "get_stored_api_key", lambda: "stored-key")
+    monkeypatch.setattr(
+        config,
+        "read_credential",
+        lambda: credentials.Credential(credentials.CredentialStatus.STORED, "stored-key"),
+    )
 
     assert get_api_key() == "environment-key"
 
@@ -56,6 +64,11 @@ def test_a_missing_key_error_names_both_ways_to_supply_one(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.delenv("LSE_API_KEY", raising=False)
+    monkeypatch.setattr(
+        config,
+        "read_credential",
+        lambda: credentials.Credential(credentials.CredentialStatus.ABSENT, None),
+    )
 
     with pytest.raises(ConfigurationError) as raised:
         get_api_key()
@@ -118,3 +131,54 @@ def test_get_max_response_bytes_rejects_invalid_value(
 
     with pytest.raises(ConfigurationError, match="must be a positive whole number"):
         get_max_response_bytes()
+
+
+def test_an_unreachable_store_does_not_advise_logging_in_again(
+    monkeypatch: pytest.MonkeyPatch, inaccessible_credential_store: None
+) -> None:
+    """Re-running login cannot fix a store this process is not allowed to read."""
+    monkeypatch.delenv("LSE_API_KEY", raising=False)
+
+    with pytest.raises(ConfigurationError) as raised:
+        get_api_key()
+
+    message = str(raised.value)
+    assert "cannot reach it" in message
+    assert "LSE_API_KEY" in message
+    assert "lse-data-mcp login" not in message
+
+
+def test_a_host_with_no_store_is_told_so_rather_than_to_log_in(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("LSE_API_KEY", raising=False)
+
+    with pytest.raises(ConfigurationError) as raised:
+        get_api_key()
+
+    message = str(raised.value)
+    assert "no credential store" in message
+    assert "lse-data-mcp login" not in message
+
+
+def test_a_reachable_but_empty_store_still_advises_logging_in(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("LSE_API_KEY", raising=False)
+    monkeypatch.setattr(
+        config,
+        "read_credential",
+        lambda: credentials.Credential(credentials.CredentialStatus.ABSENT, None),
+    )
+
+    with pytest.raises(ConfigurationError, match="lse-data-mcp login"):
+        get_api_key()
+
+
+def test_an_unreachable_store_still_falls_through_to_the_environment(
+    monkeypatch: pytest.MonkeyPatch, inaccessible_credential_store: None
+) -> None:
+    """Diagnostics changed; the resolution order did not."""
+    monkeypatch.setenv("LSE_API_KEY", "environment-key")
+
+    assert get_api_key() == "environment-key"
