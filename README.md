@@ -70,16 +70,28 @@ Never commit the key to this repository or put a real key in an issue, test, exa
 
 ## Installation
 
-Clone and install the server in a virtual environment:
+First confirm the interpreter you are about to use is 3.11 or newer:
+
+```bash
+python3 --version
+```
+
+macOS ships an older `python3` than this project supports, so that command often reports 3.9.
+Install a supported one with `brew install python@3.13`, then use it by name — `python3.13`
+instead of `python3` — in the first command below. On Windows, use `py -3.13`.
 
 ```bash
 git clone https://github.com/OlegDyukel/lse-data-mcp.git
 cd lse-data-mcp
-python3.11 -m venv .venv
-source .venv/bin/activate
+python3 -m venv .venv           # or python3.13 -m venv .venv
+source .venv/bin/activate       # Windows: .venv\Scripts\activate
 python -m pip install --upgrade pip
 python -m pip install .
 ```
+
+Activating the virtual environment is what puts `lse-data-mcp` on your `PATH`. In a shell where
+you have not activated it, call it by its full path instead:
+`/absolute/path/to/lse-data-mcp/.venv/bin/lse-data-mcp`.
 
 For development, install the test and quality tools too:
 
