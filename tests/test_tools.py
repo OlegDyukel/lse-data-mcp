@@ -40,6 +40,15 @@ class FakeClient:
     def dividends(self, *args: Any, **kwargs: Any) -> list[dict[str, Any]]:
         return self._record("dividends", *args, **kwargs)
 
+    def splits(self, *args: Any, **kwargs: Any) -> list[dict[str, Any]]:
+        return self._record("splits", *args, **kwargs)
+
+    def cot(self, *args: Any, **kwargs: Any) -> list[dict[str, Any]]:
+        return self._record("cot", *args, **kwargs)
+
+    def bond_yields(self, *args: Any, **kwargs: Any) -> list[dict[str, Any]]:
+        return self._record("bond_yields", *args, **kwargs)
+
     def economic_calendar(self, *args: Any, **kwargs: Any) -> list[dict[str, Any]]:
         return self._record("economic_calendar", *args, **kwargs)
 
@@ -371,7 +380,14 @@ async def test_accepts_documented_iso_forms(fake_client: FakeClient, value: str)
 
 @pytest.mark.anyio
 async def test_every_windowed_tool_validates_its_dates(fake_client: FakeClient) -> None:
-    for tool in (tools.get_candles, tools.get_dividends, tools.get_insider_transactions):
+    for tool in (
+        tools.get_candles,
+        tools.get_dividends,
+        tools.get_insider_transactions,
+        tools.get_splits,
+        tools.get_cot,
+        tools.get_bond_yields,
+    ):
         with pytest.raises(ValueError, match="ISO 8601"):
             await tool("AAPL", start="01/01/2026")
 
@@ -515,3 +531,71 @@ async def test_get_reference_wraps_a_single_object_result(fake_client: FakeClien
     assert result["rows"] == [{"datasets": 12, "timeframes": 14}]
     assert result["row_count"] == 1
     assert result["truncated"] is False
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("tool_name", "sdk_method", "default_order"),
+    [
+        ("get_splits", "splits", "desc"),
+        ("get_cot", "cot", "asc"),
+        ("get_bond_yields", "bond_yields", "asc"),
+    ],
+)
+async def test_series_tools_map_symbol_and_filters(
+    fake_client: FakeClient, tool_name: str, sdk_method: str, default_order: str
+) -> None:
+    tool = getattr(tools, tool_name)
+
+    result = await tool("US10Y", start="2026-01-01", end="2026-02-01", limit=10)
+
+    assert result["rows"] == [{"source": sdk_method}]
+    assert fake_client.calls == [
+        (
+            sdk_method,
+            ("US10Y",),
+            {
+                "start": "2026-01-01",
+                "end": "2026-02-01",
+                "order": default_order,
+                "limit": 10,
+            },
+        )
+    ]
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("tool_name", "sdk_method"),
+    [("get_splits", "splits"), ("get_cot", "cot"), ("get_bond_yields", "bond_yields")],
+)
+async def test_series_tools_accept_no_symbol(
+    fake_client: FakeClient, tool_name: str, sdk_method: str
+) -> None:
+    """Upstream treats the symbol as optional, so the tool must not require one."""
+    await getattr(tools, tool_name)()
+
+    name, args, _ = fake_client.calls[0]
+    assert name == sdk_method
+    assert args == (None,)
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("tool_name", ["get_splits", "get_cot", "get_bond_yields"])
+async def test_series_tools_reject_a_blank_symbol(fake_client: FakeClient, tool_name: str) -> None:
+    """Omitting a symbol means "every symbol"; sending an empty one is a mistake."""
+    with pytest.raises(ValueError, match="symbol must not be empty"):
+        await getattr(tools, tool_name)("   ")
+
+    assert fake_client.calls == []
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("tool_name", ["get_splits", "get_cot", "get_bond_yields"])
+async def test_series_tools_reject_an_out_of_range_limit(
+    fake_client: FakeClient, tool_name: str
+) -> None:
+    with pytest.raises(ValueError, match="limit must be between"):
+        await getattr(tools, tool_name)("US10Y", limit=tools.MAX_ROWS + 1)
+
+    assert fake_client.calls == []

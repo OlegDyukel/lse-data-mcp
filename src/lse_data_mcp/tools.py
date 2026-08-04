@@ -99,6 +99,16 @@ def _validate_symbol(symbol: str) -> str:
     return value
 
 
+def _validate_optional_symbol(symbol: str | None) -> str | None:
+    """Validate a symbol only when one is given; ``None`` means every symbol.
+
+    These endpoints treat the symbol as optional upstream, and narrowing that to
+    "required" here would be this adapter inventing a restriction the provider
+    does not impose.
+    """
+    return None if symbol is None else _validate_symbol(symbol)
+
+
 def _validate_limit(limit: int) -> int:
     if not 1 <= limit <= MAX_ROWS:
         raise ValueError(f"limit must be between 1 and {MAX_ROWS:,}")
@@ -345,6 +355,101 @@ async def get_dividends(
     return await _call_upstream(
         "dividends",
         get_client().dividends,
+        symbol,
+        start=start,
+        end=end,
+        order=order,
+        limit=limit,
+    )
+
+
+async def get_splits(
+    symbol: str | None = None,
+    start: str | None = None,
+    end: str | None = None,
+    order: Order = "desc",
+    limit: int = 200,
+) -> ToolResponse:
+    """Return stock split events, newest first by default.
+
+    ``start`` and ``end`` filter the effective date, not the announcement date.
+    Omit ``symbol`` to see splits across every instrument.
+
+    A split rebases historical prices and share counts, so a per-share figure
+    compared across one is not comparing like with like. Check for a split in
+    the window before reading a price or earnings series through it.
+    """
+    symbol = _validate_optional_symbol(symbol)
+    limit = _validate_limit(limit)
+    start = _validate_timestamp("start", start)
+    end = _validate_timestamp("end", end)
+    return await _call_upstream(
+        "splits",
+        get_client().splits,
+        symbol,
+        start=start,
+        end=end,
+        order=order,
+        limit=limit,
+    )
+
+
+async def get_cot(
+    symbol: str | None = None,
+    start: str | None = None,
+    end: str | None = None,
+    order: Order = "asc",
+    limit: int = 200,
+) -> ToolResponse:
+    """Return CFTC Commitments of Traders positioning, oldest first by default.
+
+    One row per futures market per week: commercial, non-commercial and
+    non-reportable long and short positions, open interest, and week-over-week
+    changes. ``symbol`` is a futures market; omit it for every market.
+
+    The CFTC publishes on Friday for the position date of the preceding
+    Tuesday, so the newest row lags the market by several days. Treat it as a
+    weekly positioning survey, never as a current position.
+    """
+    symbol = _validate_optional_symbol(symbol)
+    limit = _validate_limit(limit)
+    start = _validate_timestamp("start", start)
+    end = _validate_timestamp("end", end)
+    return await _call_upstream(
+        "commitments of traders",
+        get_client().cot,
+        symbol,
+        start=start,
+        end=end,
+        order=order,
+        limit=limit,
+    )
+
+
+async def get_bond_yields(
+    symbol: str | None = None,
+    start: str | None = None,
+    end: str | None = None,
+    order: Order = "asc",
+    limit: int = 200,
+) -> ToolResponse:
+    """Return government bond yield history, oldest first by default.
+
+    Daily open, high, low and close per tenor symbol — ``US10Y``, ``DE02Y`` and
+    the like — covering 31 countries back to 1990. Omit ``symbol`` for every
+    tenor. Use ``get_reference('catalog', category='bonds')`` to discover which
+    tenors exist.
+
+    Values are yields in percent, not prices: they move inversely to the bond's
+    price, and a "high" is the day's highest yield, which is its lowest price.
+    """
+    symbol = _validate_optional_symbol(symbol)
+    limit = _validate_limit(limit)
+    start = _validate_timestamp("start", start)
+    end = _validate_timestamp("end", end)
+    return await _call_upstream(
+        "bond yields",
+        get_client().bond_yields,
         symbol,
         start=start,
         end=end,
