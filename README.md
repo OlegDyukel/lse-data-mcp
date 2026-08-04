@@ -58,8 +58,8 @@ Anything else is rejected locally, so a malformed date costs no API call and no 
 
 1. Visit the official [London Strategic Edge data page](https://londonstrategicedge.com/data/).
 2. Follow the site's prompts to obtain your own API key.
-3. Expose it to the MCP server as `LSE_API_KEY` through your MCP client's environment or secret
-   configuration.
+3. Store it with `lse-data-mcp login`, which prompts without echoing and saves the key to the
+   operating system's own credential store.
 
 Never commit the key to this repository or put a real key in an issue, test, example, or log.
 
@@ -87,75 +87,106 @@ For development, install the test and quality tools too:
 python -m pip install -e ".[dev]"
 ```
 
-## Configuration
+## Supplying the API key
 
-The server reads configuration from its process environment:
+Store the key once, in the credential store your operating system already provides:
+
+```bash
+lse-data-mcp login     # prompts without echoing; nothing is written to a file
+lse-data-mcp status    # reports where the key resolves from, without printing it
+lse-data-mcp logout    # removes the stored key
+```
+
+`login` never accepts the key as a command-line argument, because anything in `argv` reaches
+shell history and the process list.
+
+| Platform | Where the key is kept |
+| --- | --- |
+| macOS | Keychain |
+| Windows | Credential Locker |
+| Linux desktop | Secret Service (GNOME Keyring) or KWallet |
+
+The server resolves its key in this order:
+
+1. the `LSE_API_KEY` environment variable, when set and non-empty;
+2. the credential store written by `lse-data-mcp login`;
+3. otherwise it reports that no key is configured and names both ways to supply one.
+
+The environment wins so that a host injecting the key directly — a container, a CI job, or an MCP
+client with its own secret manager — stays authoritative over whatever an earlier `login` left on
+the machine.
+
+**Headless hosts.** Secret Service needs a D-Bus session, so a container, an SSH session, or a
+server install has no credential store to read. Those hosts fall through to `LSE_API_KEY` rather
+than failing to start; set it in the environment there.
+
+`.env.example` is a reference only. The server deliberately does not load `.env` files: a `.env`
+is plain text on disk, which is what the credential store exists to avoid.
+
+## Configuration
 
 | Variable | Required | Default | Purpose |
 | --- | --- | --- | --- |
-| `LSE_API_KEY` | Yes | - | The user's own London Strategic Edge API key |
+| `LSE_API_KEY` | Only without a stored key | - | The user's own London Strategic Edge API key |
 | `LSE_TIMEOUT_SECONDS` | No | `60` | Timeout for each upstream REST request; must be positive |
 | `LSE_MAX_RESPONSE_BYTES` | No | `131072` | Serialized-JSON budget for one tool result; must be a positive whole number |
 
-`.env.example` is a reference only. The server deliberately does not load `.env` files; the MCP
-host remains responsible for secret loading.
-
-Run the installed server directly:
+Run the installed server directly, after `lse-data-mcp login`:
 
 ```bash
-LSE_API_KEY="your_own_key" lse-data-mcp
+lse-data-mcp
 ```
 
 The equivalent module command is:
 
 ```bash
-LSE_API_KEY="your_own_key" python -m lse_data_mcp
+python -m lse_data_mcp
 ```
 
 ## MCP client configuration examples
 
-Most desktop MCP clients accept an `mcpServers` JSON object. After installing the project, point
-the client at the virtual environment's console script:
+Because the server resolves its own key, no client configuration below contains a secret. Point
+the client at the virtual environment's console script, using an absolute path — the client will
+not have your virtual environment on `PATH`.
+
+**Claude Code** — `~/.claude.json`, or run
+`claude mcp add lse-data -- /absolute/path/to/lse-data-mcp/.venv/bin/lse-data-mcp`:
 
 ```json
 {
   "mcpServers": {
     "lse-data": {
-      "command": "/absolute/path/to/lse-data-mcp/.venv/bin/lse-data-mcp",
-      "env": {
-        "LSE_API_KEY": "your_own_key",
-        "LSE_TIMEOUT_SECONDS": "60"
-      }
+      "command": "/absolute/path/to/lse-data-mcp/.venv/bin/lse-data-mcp"
     }
   }
 }
 ```
 
-Alternatively, run the package as a module from the repository:
+**Claude Desktop** — `claude_desktop_config.json`, and **Cursor** — `~/.cursor/mcp.json` for all
+projects or `.cursor/mcp.json` for one: same `mcpServers` object as above.
 
-```json
-{
-  "mcpServers": {
-    "lse-data": {
-      "command": "/absolute/path/to/lse-data-mcp/.venv/bin/python",
-      "args": ["-m", "lse_data_mcp"],
-      "cwd": "/absolute/path/to/lse-data-mcp",
-      "env": {
-        "LSE_API_KEY": "your_own_key"
-      }
-    }
-  }
-}
+**Codex** — `~/.codex/config.toml`, which is TOML rather than JSON:
+
+```toml
+[mcp_servers.lse-data]
+command = "/absolute/path/to/lse-data-mcp/.venv/bin/lse-data-mcp"
 ```
 
-Client schemas and secret stores differ. Prefer the client's secret-management mechanism over a
+Restart the client after editing its configuration; MCP servers are spawned at client startup.
+
+To run the package as a module instead of through the console script, use the virtual
+environment's `python` with `args` of `["-m", "lse_data_mcp"]`.
+
+Where a client offers its own secret management and you would rather use it, set `LSE_API_KEY`
+through that mechanism; it takes precedence over the stored key. Prefer either of those over a
 literal key in a configuration file.
 
 ## Errors and retries
 
 The server converts upstream failures into concise tool errors:
 
-- missing local configuration identifies `LSE_API_KEY` without printing its value;
+- missing local configuration names both `lse-data-mcp login` and `LSE_API_KEY`, without printing
+  any key value;
 - HTTP 401 identifies an invalid or expired API key;
 - subscription, access, and quota failures explain that the account cannot perform the request;
 - HTTP 429 asks the client to wait before retrying;
@@ -213,12 +244,14 @@ GitHub Actions runs all four checks on Python 3.11, 3.12, and 3.13 for pushes an
 
 ```text
 src/lse_data_mcp/
-├── __init__.py    # package metadata
-├── __main__.py    # python -m entry point
-├── client.py      # lazy upstream SDK client
-├── config.py      # environment configuration
-├── server.py      # FastMCP server and tool registration
-└── tools.py       # read-only market-data tools
+├── __init__.py     # package metadata
+├── __main__.py     # python -m entry point
+├── cli.py          # command line: run the server, or manage the stored key
+├── client.py       # lazy upstream SDK client
+├── config.py       # key resolution and environment configuration
+├── credentials.py  # operating-system credential store
+├── server.py       # FastMCP server and tool registration
+└── tools.py        # read-only market-data tools
 ```
 
 ## Data rights and unofficial-project disclaimer
