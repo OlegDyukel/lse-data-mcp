@@ -70,56 +70,59 @@ Anything else is rejected locally, so a malformed date costs no API call and no 
 
 1. Visit the official [London Strategic Edge data page](https://londonstrategicedge.com/data/).
 2. Follow the site's prompts to obtain your own API key.
-3. Store it with `lse-data-mcp login`, which prompts without echoing and saves the key to the
-   operating system's own credential store.
+3. Store it with `uvx lse-data-mcp login`, which prompts without echoing and saves the key to
+   the operating system's own credential store.
 
 Never commit the key to this repository or put a real key in an issue, test, example, or log.
 
 ## Requirements
 
-- Python 3.11 or newer
 - A London Strategic Edge API key
+- Either [`uv`](https://docs.astral.sh/uv/), or Python 3.11 or newer
 
 ## Installation
 
-First confirm the interpreter you are about to use is 3.11 or newer:
+With [`uv`](https://docs.astral.sh/uv/getting-started/installation/) there is nothing to install:
+`uvx` fetches the published package, runs it in a cached environment of its own, and brings its
+own Python. Store your key, then check it:
 
 ```bash
-python3 --version
+uvx lse-data-mcp login
+uvx lse-data-mcp status
 ```
 
-macOS ships an older `python3` than this project supports, so that command often reports 3.9.
-Install a supported one with `brew install python@3.13`, then use it by name — `python3.13`
-instead of `python3` — in the first command below. On Windows, use `py -3.13`.
+Whichever command you use here, use the same one in your MCP client below. Mixing `uvx` with a
+virtual environment means two different interpreters touch the credential store, which on macOS
+raises an extra Keychain prompt — see [When the server cannot find your
+key](#when-the-server-cannot-find-your-key).
+
+Without `uv`, install the same release from PyPI with pip. Check your interpreter first: macOS
+ships an older `python3` than this project supports, so that command often reports 3.9. Install a
+supported one with `brew install python@3.13` and use it by name; on Windows, use `py -3.13`.
 
 ```bash
-git clone https://github.com/OlegDyukel/lse-data-mcp.git
-cd lse-data-mcp
+python3 --version               # must be 3.11 or newer
 python3 -m venv .venv           # or python3.13 -m venv .venv
 source .venv/bin/activate       # Windows: .venv\Scripts\activate
-python -m pip install --upgrade pip
-python -m pip install .
+python -m pip install lse-data-mcp
 ```
 
-Activating the virtual environment is what puts `lse-data-mcp` on your `PATH`. In a shell where
-you have not activated it, call it by its full path instead:
-`/absolute/path/to/lse-data-mcp/.venv/bin/lse-data-mcp`.
+Activating that environment is what puts `lse-data-mcp` on your `PATH`, and a client will need
+its absolute path rather than the bare `uvx` command.
 
-For development, install the test and quality tools too:
-
-```bash
-python -m pip install -e ".[dev]"
-```
+To work on the project rather than use it, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Supplying the API key
 
 Store the key once, in the credential store your operating system already provides:
 
 ```bash
-lse-data-mcp login     # prompts without echoing; nothing is written to a file
-lse-data-mcp status    # reports where the key resolves from, without printing it
-lse-data-mcp logout    # removes the stored key
+uvx lse-data-mcp login     # prompts without echoing; nothing is written to a file
+uvx lse-data-mcp status    # reports where the key resolves from, without printing it
+uvx lse-data-mcp logout    # removes the stored key
 ```
+
+Drop the `uvx` prefix if you installed from source into a virtual environment.
 
 `login` never accepts the key as a command-line argument, because anything in `argv` reaches
 shell history and the process list.
@@ -160,6 +163,34 @@ server reports this as unknown rather than as a missing key, so `login` is not s
 re-running it could not help. Grant the host process credential-store access, or pass the key
 through `LSE_API_KEY` in the MCP client's environment configuration for that server.
 
+### The macOS Keychain prompt
+
+On macOS you may see a dialog like this the first time a given command reads your stored key:
+
+> **python3.11 wants to use your confidential information stored in "lse-data-mcp" in your
+> keychain.** The authenticity of "python3.11" cannot be verified. To allow this, enter the
+> "login" keychain password.
+
+This is expected, and it is macOS asking rather than this server. Keychain records which binary
+created an entry and asks before letting a different one read it. The dialog names a bare
+`python3.11` because that is the interpreter running the tool — under `uvx`, a Python that `uv`
+manages and that macOS has no signature for.
+
+- **Password**: your macOS login password, the one you use to unlock the Mac. Not your API key.
+- **Button**: *Always Allow* records this interpreter against the entry so it stops asking.
+
+The prompt appears at all because the command that stored the key and the command reading it are
+different programs. Use one or the other consistently and it will not recur:
+
+```bash
+uvx lse-data-mcp login     # if your MCP client runs `uvx lse-data-mcp`
+lse-data-mcp login         # if your client runs a virtual environment's script
+```
+
+It can return after `uv` upgrades its managed Python, since that is a new binary. If you would
+rather never see it — on a shared machine, or in an automated environment — set `LSE_API_KEY` in
+the MCP client's environment for this server instead, which bypasses the credential store.
+
 `.env.example` is a reference only. The server deliberately does not load `.env` files: a `.env`
 is plain text on disk, which is what the credential store exists to avoid.
 
@@ -171,32 +202,30 @@ is plain text on disk, which is what the credential store exists to avoid.
 | `LSE_TIMEOUT_SECONDS` | No | `60` | Timeout for each upstream REST request; must be positive |
 | `LSE_MAX_RESPONSE_BYTES` | No | `131072` | Serialized-JSON budget for one tool result; must be a positive whole number |
 
-Run the installed server directly, after `lse-data-mcp login`:
+An MCP client starts the server for you. To run it by hand — to see a startup error directly,
+say — use the same command your client does, after storing a key:
 
 ```bash
-lse-data-mcp
+uvx lse-data-mcp
 ```
 
-The equivalent module command is:
-
-```bash
-python -m lse_data_mcp
-```
+From a source checkout, that is `lse-data-mcp`, or `python -m lse_data_mcp` to run the package as
+a module. Nothing is printed on success: the server is waiting to speak JSON-RPC over standard
+input, so an empty, hanging terminal means it started correctly. Press Ctrl-C to stop it.
 
 ## MCP client configuration examples
 
-Because the server resolves its own key, no client configuration below contains a secret. Point
-the client at the virtual environment's console script, using an absolute path — the client will
-not have your virtual environment on `PATH`.
+Because the server resolves its own key, no client configuration below contains a secret, and
+because `uvx` resolves the package, none of them needs a path.
 
-**Claude Code** — `~/.claude.json`, or run
-`claude mcp add lse-data -- /absolute/path/to/lse-data-mcp/.venv/bin/lse-data-mcp`:
+**Claude Code** — `~/.claude.json`, or run `claude mcp add lse-data -- uvx lse-data-mcp`:
 
 ```json
 {
   "mcpServers": {
     "lse-data": {
-      "command": "/absolute/path/to/lse-data-mcp/.venv/bin/lse-data-mcp"
+      "command": "uvx",
+      "args": ["lse-data-mcp"]
     }
   }
 }
@@ -209,13 +238,37 @@ projects or `.cursor/mcp.json` for one: same `mcpServers` object as above.
 
 ```toml
 [mcp_servers.lse-data]
-command = "/absolute/path/to/lse-data-mcp/.venv/bin/lse-data-mcp"
+command = "uvx"
+args = ["lse-data-mcp"]
 ```
 
 Restart the client after editing its configuration; MCP servers are spawned at client startup.
 
-To run the package as a module instead of through the console script, use the virtual
-environment's `python` with `args` of `["-m", "lse_data_mcp"]`.
+Two things to know about `command: "uvx"`. A client launched from the desktop rather than a
+terminal may not have `uvx` on its `PATH`; give the absolute path from `which uvx` if the server
+fails to start. And `uvx` fetches the latest release each time its cache expires, so the server
+updates itself — pin with `["lse-data-mcp==0.1.0"]` if you would rather it did not.
+
+<details>
+<summary>Pointing at a virtual environment instead</summary>
+
+For a pip install or a source checkout, name the environment's console script directly:
+
+```json
+{
+  "mcpServers": {
+    "lse-data": {
+      "command": "/absolute/path/to/.venv/bin/lse-data-mcp"
+    }
+  }
+}
+```
+
+The path must be absolute: the client will not have your virtual environment on `PATH`. To run
+the package as a module rather than through the console script, use that environment's `python`
+with `args` of `["-m", "lse_data_mcp"]`.
+
+</details>
 
 Where a client offers its own secret management and you would rather use it, set `LSE_API_KEY`
 through that mechanism; it takes precedence over the stored key. Prefer either of those over a
