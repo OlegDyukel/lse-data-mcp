@@ -20,7 +20,8 @@ mcp = FastMCP(
     name="LSE Data Community Adapter",
     instructions=(
         "Read-only access to London Strategic Edge market data. "
-        "The user must supply their own LSE_API_KEY and comply with the provider's terms."
+        "The user must supply their own API key, through 'lse-data-mcp login' or LSE_API_KEY, "
+        "and comply with the provider's terms."
     ),
 )
 

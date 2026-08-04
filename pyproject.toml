@@ -22,6 +22,7 @@ classifiers = [
 ]
 dependencies = [
     "anyio>=4.5,<5",
+    "keyring>=25,<26",
     "lse-data>=0.14,<1",
     "mcp>=1.27,<2",
 ]
@@ -35,7 +36,7 @@ dev = [
 ]
 
 [project.scripts]
-lse-data-mcp = "lse_data_mcp.server:main"
+lse-data-mcp = "lse_data_mcp.cli:main"
 
 [project.urls]
 Repository = "https://github.com/OlegDyukel/lse-data-mcp"

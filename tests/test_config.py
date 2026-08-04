@@ -2,11 +2,13 @@
 
 import pytest
 
+from lse_data_mcp import config, credentials
 from lse_data_mcp.config import (
     DEFAULT_MAX_RESPONSE_BYTES,
     DEFAULT_TIMEOUT_SECONDS,
     ConfigurationError,
     get_api_key,
+    get_api_key_if_set,
     get_max_response_bytes,
     get_timeout_seconds,
 )
@@ -18,11 +20,58 @@ def test_get_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
     assert get_api_key() == "test-key"
 
 
+def test_get_api_key_falls_back_to_the_credential_store(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("LSE_API_KEY", raising=False)
+    monkeypatch.setattr(config, "get_stored_api_key", lambda: "stored-key")
+
+    assert get_api_key() == "stored-key"
+
+
+def test_the_environment_wins_over_the_credential_store(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A host that injects the key directly stays authoritative over a past login."""
+    monkeypatch.setenv("LSE_API_KEY", "environment-key")
+    monkeypatch.setattr(config, "get_stored_api_key", lambda: "stored-key")
+
+    assert get_api_key() == "environment-key"
+
+
+def test_get_api_key_if_set_reports_no_key_anywhere(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("LSE_API_KEY", raising=False)
+
+    assert get_api_key_if_set() is None
+
+
 def test_get_api_key_rejects_missing_value(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("LSE_API_KEY", raising=False)
 
-    with pytest.raises(ConfigurationError, match="LSE_API_KEY is not configured"):
+    with pytest.raises(ConfigurationError, match="No London Strategic Edge API key"):
         get_api_key()
+
+
+def test_a_missing_key_error_names_both_ways_to_supply_one(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("LSE_API_KEY", raising=False)
+
+    with pytest.raises(ConfigurationError) as raised:
+        get_api_key()
+
+    assert "lse-data-mcp login" in str(raised.value)
+    assert "LSE_API_KEY" in str(raised.value)
+
+
+def test_an_unusable_credential_store_does_not_break_startup(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The autouse fixture models a headless host; resolution must still return."""
+    monkeypatch.delenv("LSE_API_KEY", raising=False)
+    credentials.reset_cache()
+
+    assert get_api_key_if_set() is None
 
 
 def test_get_timeout_seconds_uses_default(monkeypatch: pytest.MonkeyPatch) -> None:

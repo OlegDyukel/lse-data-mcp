@@ -3,6 +3,8 @@
 import math
 import os
 
+from lse_data_mcp.credentials import get_stored_api_key
+
 DEFAULT_TIMEOUT_SECONDS = 60.0
 
 # A single interactive page can reach 5,000 rows, which is far more JSON than an
@@ -18,9 +20,15 @@ def get_api_key_if_set() -> str | None:
     """Return the configured API key, or ``None`` when it is absent.
 
     Redaction needs the key without the failure mode of :func:`get_api_key`, so
-    reading the environment stays owned by this module.
+    resolving it stays owned by this module. The environment wins over the
+    credential store, which keeps a host that injects the key directly - a
+    container, a CI job, a client with its own secret manager - authoritative
+    over whatever an earlier ``lse-data-mcp login`` left on the machine.
     """
-    return os.getenv("LSE_API_KEY", "").strip() or None
+    from_environment = os.getenv("LSE_API_KEY", "").strip()
+    if from_environment:
+        return from_environment
+    return get_stored_api_key()
 
 
 def get_api_key() -> str:
@@ -28,8 +36,9 @@ def get_api_key() -> str:
     api_key = get_api_key_if_set()
     if not api_key:
         raise ConfigurationError(
-            "LSE_API_KEY is not configured. Supply your own London Strategic Edge API key "
-            "through the MCP client's environment configuration."
+            "No London Strategic Edge API key is configured. Run 'lse-data-mcp login' to "
+            "store your own key in this system's credential store, or set LSE_API_KEY in "
+            "the MCP client's environment configuration."
         )
     return api_key
 
