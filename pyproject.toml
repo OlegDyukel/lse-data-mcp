@@ -24,7 +24,7 @@ dependencies = [
     "anyio>=4.5,<5",
     "keyring>=25,<26",
     "lse-data>=0.14,<1",
-    "mcp>=1.27,<2",
+    "mcp>=1.27,<3",
 ]
 
 [project.optional-dependencies]
