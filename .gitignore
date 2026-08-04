@@ -16,6 +16,12 @@ htmlcov/
 build/
 dist/
 
+# uv writes this when a uv command runs in the working tree. A library pins
+# ranges in pyproject.toml and must resolve against whatever a user already
+# has, so a committed lockfile here would describe one machine, not the
+# project. Applications are the case that wants one.
+uv.lock
+
 # Credentials and local configuration
 .env
 .env.*
