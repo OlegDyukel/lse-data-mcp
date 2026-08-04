@@ -104,10 +104,16 @@ jobs:
           name: distributions
           path: dist/
 
+      # TestPyPI is where a release is rehearsed, so a repeat dispatch of the
+      # same version must not fail: a filename cannot be reused on any index,
+      # and re-running the rehearsal is the point of having one. The real PyPI
+      # job deliberately keeps the default, where a duplicate upload is an
+      # error worth seeing rather than a silent no-op.
       - name: Publish
         uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
         with:
           repository-url: https://test.pypi.org/legacy/
+          skip-existing: true
 
   publish-pypi:
     name: Publish to PyPI
