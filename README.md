@@ -11,7 +11,7 @@
 
 [![PyPI](https://img.shields.io/pypi/v/lse-data-mcp?style=flat-square&logo=pypi&logoColor=white)](https://pypi.org/project/lse-data-mcp/) [![Python](https://img.shields.io/pypi/pyversions/lse-data-mcp?style=flat-square&logo=python&logoColor=white)](https://github.com/OlegDyukel/lse-data-mcp/blob/main/pyproject.toml) [![License](https://img.shields.io/pypi/l/lse-data-mcp?style=flat-square)](https://github.com/OlegDyukel/lse-data-mcp/blob/main/LICENSE) [![CI](https://img.shields.io/github/actions/workflow/status/OlegDyukel/lse-data-mcp/ci.yml?branch=main&style=flat-square&logo=githubactions&logoColor=white&label=CI)](https://github.com/OlegDyukel/lse-data-mcp/actions/workflows/ci.yml) [![MCP](https://img.shields.io/badge/MCP-server-6E56CF?style=flat-square)](https://modelcontextprotocol.io/)
 
-[![Add to Cursor](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/en/install-mcp?name=lse-data&config=eyJjb21tYW5kIjoidXZ4IiwiYXJncyI6WyJsc2UtZGF0YS1tY3AiXX0=) [![Install in VS Code](https://img.shields.io/badge/VS_Code-Install_Server-0098FF?style=for-the-badge&logo=visualstudiocode&logoColor=white)](https://vscode.dev/redirect/mcp/install?name=lse-data&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22lse-data-mcp%22%5D%7D)
+[![Add to Cursor](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/en/install-mcp?name=lse-data&config=eyJjb21tYW5kIjoidXZ4IiwiYXJncyI6WyJsc2UtZGF0YS1tY3AiXX0=) [![Install in VS Code](https://img.shields.io/badge/Install_in_VS_Code-0098FF?style=for-the-badge&logo=visualstudiocode&logoColor=white)](https://vscode.dev/redirect/mcp/install?name=lse-data&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22lse-data-mcp%22%5D%7D)
 
 </div>
 
@@ -250,6 +250,11 @@ where `-s user` registers the server for every project rather than only the curr
 
 **Claude Desktop** — `claude_desktop_config.json`, and **Cursor** — `~/.cursor/mcp.json` for all
 projects or `.cursor/mcp.json` for one: same `mcpServers` object as above.
+
+**Antigravity** — `mcp_config.json`, which the editor exposes through **… > MCP Store > Manage
+MCP Servers > View raw config** rather than at a documented path: same `mcpServers` object as
+above. The install buttons cannot help here, because a browser can only hand a link to the editor
+that claims the URL scheme it names, and each VS Code fork registers its own.
 
 **Codex** — `~/.codex/config.toml`, which is TOML rather than JSON, or run
 `codex mcp add lse-data -- uvx lse-data-mcp`. That file is user-global, so there is no scope to
