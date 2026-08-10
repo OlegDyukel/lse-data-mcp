@@ -16,7 +16,7 @@
 </div>
 
 > **Versioning:** While the version is 0.x, tool names and arguments may still change between
-> releases. Pin one — `uvx lse-data-mcp==0.1.2` — if you need the surface to stay put.
+> releases. Pin one — `uvx lse-data-mcp==0.1.3` — if you need the surface to stay put.
 
 The server lets an MCP client query London Strategic Edge data through the official
 [`lse-data`](https://pypi.org/project/lse-data/) Python SDK. It runs locally over standard
@@ -77,7 +77,25 @@ rows; use `start` and `end` to request narrower windows.
 reports, or twenty years of annual ones.
 
 `start` and `end` accept an ISO 8601 date or timestamp (`2026-01-01`, `2026-01-01T14:30:00Z`).
-Anything else is rejected locally, so a malformed date costs no API call and no quota.
+Anything else is rejected locally, so a malformed date costs no API call and no quota. On
+`get_candles` the upstream API accepts the date part only; an intraday `start` or `end` is
+rejected there, so narrow a `1s` or `1m` window by filtering the rows that come back.
+
+## Data caveats
+
+Two upstream conventions are worth knowing before you quote a number. Both were measured by
+comparing this API against other market-data sources, and both are open questions with the
+provider.
+
+- **Daily candles cover the extended session**, 08:00–23:00 UTC (04:00–19:00 ET), not the regular
+  session. A daily `close` is the last post-market print rather than the 16:00 ET closing auction,
+  so it differs from the close quoted by most retail sources — usually by a few cents, in either
+  direction depending on post-market drift. Intraday highs and lows match the consolidated tape.
+  The prices are not wrong; the session boundary is different.
+- **Volume is indicative only.** Across fifteen sessions of one large-cap US equity, daily volume
+  ranged from 45% to 106% of a consolidated-tape source, with no stable relationship to date,
+  volume level, or bar age. The closing auction appears in some sessions and not others. Do not
+  use this field for liquidity, participation, or turnover conclusions.
 
 ## Obtain an API key
 

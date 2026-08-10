@@ -336,7 +336,21 @@ async def get_candles(
 ) -> ToolResponse:
     """Return OHLCV candles for an instrument.
 
-    Dates may be ISO 8601 dates or timestamps accepted by the upstream API.
+    US equity bars cover the extended session, 08:00-23:00 UTC (04:00-19:00
+    ET), not the regular session. A daily ``close`` is therefore the last
+    post-market print rather than the 16:00 ET closing auction, so it differs
+    from the close quoted by most retail sources, usually by a few cents and in
+    either direction. Say which close you are quoting, and do not treat a
+    difference from another source as an error.
+
+    Treat ``volume`` as indicative only. Measured against a consolidated-tape
+    source over fifteen sessions it ranged from 45% to 106% of that source's
+    figure, with no stable pattern, so it does not support liquidity,
+    participation or turnover claims.
+
+    ``start`` and ``end`` filter by date. The upstream API rejects an intraday
+    timestamp here, so narrow a ``1s`` or ``1m`` window by filtering the rows
+    that come back.
     """
     symbol = _validate_symbol(symbol)
     limit = _validate_limit(limit)
