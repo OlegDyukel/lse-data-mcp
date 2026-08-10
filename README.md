@@ -11,7 +11,7 @@
 
 [![PyPI](https://img.shields.io/pypi/v/lse-data-mcp?style=flat-square&logo=pypi&logoColor=white)](https://pypi.org/project/lse-data-mcp/) [![Python](https://img.shields.io/pypi/pyversions/lse-data-mcp?style=flat-square&logo=python&logoColor=white)](https://github.com/OlegDyukel/lse-data-mcp/blob/main/pyproject.toml) [![License](https://img.shields.io/pypi/l/lse-data-mcp?style=flat-square)](https://github.com/OlegDyukel/lse-data-mcp/blob/main/LICENSE) [![CI](https://img.shields.io/github/actions/workflow/status/OlegDyukel/lse-data-mcp/ci.yml?branch=main&style=flat-square&logo=githubactions&logoColor=white&label=CI)](https://github.com/OlegDyukel/lse-data-mcp/actions/workflows/ci.yml) [![MCP](https://img.shields.io/badge/MCP-server-6E56CF?style=flat-square)](https://modelcontextprotocol.io/)
 
-[![Add to Cursor](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/en/install-mcp?name=lse-data&config=eyJjb21tYW5kIjoidXZ4IiwiYXJncyI6WyJsc2UtZGF0YS1tY3AiXX0=) [![Install in VS Code](https://img.shields.io/badge/VS_Code-Install_Server-0098FF?style=for-the-badge&logo=visualstudiocode&logoColor=white)](https://vscode.dev/redirect?url=vscode:mcp/install?%7B%22name%22%3A%22lse-data%22%2C%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22lse-data-mcp%22%5D%7D)
+[![Add to Cursor](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/en/install-mcp?name=lse-data&config=eyJjb21tYW5kIjoidXZ4IiwiYXJncyI6WyJsc2UtZGF0YS1tY3AiXX0=) [![Install in VS Code](https://img.shields.io/badge/VS_Code-Install_Server-0098FF?style=for-the-badge&logo=visualstudiocode&logoColor=white)](https://vscode.dev/redirect/mcp/install?name=lse-data&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22lse-data-mcp%22%5D%7D)
 
 </div>
 
