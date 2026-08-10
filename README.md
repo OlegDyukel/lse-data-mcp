@@ -251,10 +251,10 @@ where `-s user` registers the server for every project rather than only the curr
 **Claude Desktop** — `claude_desktop_config.json`, and **Cursor** — `~/.cursor/mcp.json` for all
 projects or `.cursor/mcp.json` for one: same `mcpServers` object as above.
 
-**Antigravity** — `mcp_config.json`, which the editor exposes through **… > MCP Store > Manage
-MCP Servers > View raw config** rather than at a documented path: same `mcpServers` object as
-above. The install buttons cannot help here, because a browser can only hand a link to the editor
-that claims the URL scheme it names, and each VS Code fork registers its own.
+**Antigravity** — `~/.gemini/config/mcp_config.json`, or the same file through **… > MCP Store >
+Manage MCP Servers > View raw config** in the agent panel: same `mcpServers` object as above. The
+install buttons cannot help here, because a browser can only hand a link to the editor that claims
+the URL scheme it names, and each VS Code fork registers its own.
 
 **Codex** — `~/.codex/config.toml`, which is TOML rather than JSON, or run
 `codex mcp add lse-data -- uvx lse-data-mcp`. That file is user-global, so there is no scope to
