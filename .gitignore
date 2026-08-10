@@ -27,6 +27,11 @@ uv.lock
 .env.*
 !.env.example
 
+# Local working notes. Drafts of announcements and outreach are written
+# against a moment in time, not against the code, so they go stale in a way a
+# reader of this repository cannot detect.
+promotion/
+
 # Provider data and API response downloads
 data/
 downloads/
