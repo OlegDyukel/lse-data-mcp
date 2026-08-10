@@ -218,7 +218,8 @@ input, so an empty, hanging terminal means it started correctly. Press Ctrl-C to
 Because the server resolves its own key, no client configuration below contains a secret, and
 because `uvx` resolves the package, none of them needs a path.
 
-**Claude Code** — `~/.claude.json`, or run `claude mcp add lse-data -- uvx lse-data-mcp`:
+**Claude Code** — `~/.claude.json`, or run `claude mcp add -s user lse-data -- uvx lse-data-mcp`,
+where `-s user` registers the server for every project rather than only the current one:
 
 ```json
 {
@@ -234,7 +235,9 @@ because `uvx` resolves the package, none of them needs a path.
 **Claude Desktop** — `claude_desktop_config.json`, and **Cursor** — `~/.cursor/mcp.json` for all
 projects or `.cursor/mcp.json` for one: same `mcpServers` object as above.
 
-**Codex** — `~/.codex/config.toml`, which is TOML rather than JSON:
+**Codex** — `~/.codex/config.toml`, which is TOML rather than JSON, or run
+`codex mcp add lse-data -- uvx lse-data-mcp`. That file is user-global, so there is no scope to
+choose:
 
 ```toml
 [mcp_servers.lse-data]
