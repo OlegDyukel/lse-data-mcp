@@ -16,7 +16,7 @@
 </div>
 
 > **Versioning:** While the version is 0.x, tool names and arguments may still change between
-> releases. Pin one — `uvx lse-data-mcp==0.1.1` — if you need the surface to stay put.
+> releases. Pin one — `uvx lse-data-mcp==0.1.2` — if you need the surface to stay put.
 
 The server lets an MCP client query London Strategic Edge data through the official
 [`lse-data`](https://pypi.org/project/lse-data/) Python SDK. It runs locally over standard
@@ -126,7 +126,8 @@ python -m pip install lse-data-mcp
 Activating that environment is what puts `lse-data-mcp` on your `PATH`, and a client will need
 its absolute path rather than the bare `uvx` command.
 
-To work on the project rather than use it, see [CONTRIBUTING.md](CONTRIBUTING.md).
+To work on the project rather than use it, see
+[CONTRIBUTING.md](https://github.com/OlegDyukel/lse-data-mcp/blob/main/CONTRIBUTING.md).
 
 ## Supplying the API key
 
@@ -401,4 +402,4 @@ or maintained by London Strategic Edge.
 
 ## License
 
-[MIT](LICENSE)
+[MIT](https://github.com/OlegDyukel/lse-data-mcp/blob/main/LICENSE)
