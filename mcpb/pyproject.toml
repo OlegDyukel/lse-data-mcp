@@ -9,10 +9,10 @@
 # Do not hand-edit them.
 [project]
 name = "lse-data-mcp-bundle"
-version = "0.1.3"
+version = "0.1.4"
 description = "Claude Desktop bundle that installs the published lse-data-mcp release"
 requires-python = ">=3.11"
 
 # An exact pin, never a range: a bundle a user already downloaded must keep
 # installing the same code that PyPI served for this release.
-dependencies = ["lse-data-mcp==0.1.3"]
+dependencies = ["lse-data-mcp==0.1.4"]
