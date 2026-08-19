@@ -53,6 +53,13 @@ jobs:
       - name: Run unit tests
         run: pytest
 
+      # The desktop bundle's manifest and dependency pin are generated from the
+      # version in pyproject.toml. Checking them here turns a forgotten bump into
+      # a pull-request failure, rather than one discovered at release time when
+      # the tag has already been pushed and the number cannot be reused.
+      - name: Check the desktop bundle is in step with the version
+        run: python scripts/sync_bundle_version.py --check
+
   audit:
     name: Dependency audit
     runs-on: ubuntu-latest

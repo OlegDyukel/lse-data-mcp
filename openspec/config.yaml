@@ -1,0 +1,48 @@
+schema: spec-driven
+
+context: |
+  Project: lse-data-mcp — an unofficial, read-only MCP (Model Context Protocol)
+  server exposing the London Strategic Edge market-data API to AI clients.
+
+  Tech stack: Python >=3.11, hatchling build backend, uv for env/lockfile.
+  Runtime deps: mcp, lse-data (official upstream SDK), anyio, keyring.
+  Dev tooling: pytest + pytest-cov, ruff (lint + format), mypy (strict on src/).
+
+  Layout: src/lse_data_mcp/ — cli.py (entrypoint), server.py (MCP server),
+  tools.py (the 15 tool definitions), client.py (SDK wrapper), config.py,
+  credentials.py (keyring-backed API key storage). Tests in tests/.
+
+  Conventions:
+  - Read-only: the server never writes, caches, or persists upstream data.
+  - API keys come from the user (`lse-data-mcp login` or LSE_API_KEY env var).
+  - Public tool names/args are semi-stable while on 0.x; breaking changes to
+    them need a note in the README versioning callout.
+  - Conventional commit messages; changes land via PR to main.
+  - Every behaviour change ships with tests; CI runs ruff, mypy, and pytest.
+
+rules:
+  tasks:
+    - Include a task for updating tests alongside any behaviour change.
+    - Include a task for README/docs updates when the tool surface changes.
+
+# Per-artifact rules (optional)
+# Add custom rules for specific artifacts.
+# Example:
+#   rules:
+#     proposal:
+#       - Keep proposals under 500 words
+#       - Always include a "Non-goals" section
+#     tasks:
+#       - Break tasks into chunks of max 2 hours
+
+# Per-operation guidance (optional)
+# Add advisory guidance for how apply and archive work should be conducted.
+# This is separate from artifact rules above.
+# Example:
+#   operations:
+#     apply:
+#       guidance:
+#         - Keep test summaries concise
+#     archive:
+#       guidance:
+#         - Summarize the archive outcome before finishing

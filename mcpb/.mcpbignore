@@ -1,0 +1,12 @@
+# Keep the packed bundle to a manifest, a dependency declaration, and a
+# launcher — roughly 2 KB. Anything `uv` creates while resolving locally is a
+# local artifact and must not travel inside the bundle.
+.venv/
+uv.lock
+.python-version
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/

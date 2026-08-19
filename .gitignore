@@ -22,6 +22,11 @@ dist/
 # project. Applications are the case that wants one.
 uv.lock
 
+# The packed Claude Desktop bundle. It is a build output: the release workflow
+# regenerates it from mcpb/ on every tag, and a committed copy would be one more
+# thing that can silently disagree with the version it claims to install.
+*.mcpb
+
 # Credentials and local configuration
 .env
 .env.*
