@@ -11,7 +11,7 @@
 
 [![PyPI](https://img.shields.io/pypi/v/lse-data-mcp?style=flat-square&logo=pypi&logoColor=white)](https://pypi.org/project/lse-data-mcp/) [![Python](https://img.shields.io/pypi/pyversions/lse-data-mcp?style=flat-square&logo=python&logoColor=white)](https://github.com/OlegDyukel/lse-data-mcp/blob/main/pyproject.toml) [![License](https://img.shields.io/pypi/l/lse-data-mcp?style=flat-square)](https://github.com/OlegDyukel/lse-data-mcp/blob/main/LICENSE) [![CI](https://img.shields.io/github/actions/workflow/status/OlegDyukel/lse-data-mcp/ci.yml?branch=main&style=flat-square&logo=githubactions&logoColor=white&label=CI)](https://github.com/OlegDyukel/lse-data-mcp/actions/workflows/ci.yml) [![MCP](https://img.shields.io/badge/MCP-server-6E56CF?style=flat-square)](https://modelcontextprotocol.io/)
 
-[![Add to Cursor](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/en/install-mcp?name=lse-data&config=eyJjb21tYW5kIjoidXZ4IiwiYXJncyI6WyJsc2UtZGF0YS1tY3AiXX0=) [![Install in VS Code](https://img.shields.io/badge/Install_in_VS_Code-0098FF?style=for-the-badge&logo=visualstudiocode&logoColor=white)](https://vscode.dev/redirect/mcp/install?name=lse-data&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22lse-data-mcp%22%5D%7D)
+[![Add to Cursor](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/en/install-mcp?name=lse-data&config=eyJjb21tYW5kIjoidXZ4IiwiYXJncyI6WyJsc2UtZGF0YS1tY3AiXX0=) [![Install in VS Code](https://img.shields.io/badge/Install_in_VS_Code-0098FF?style=for-the-badge&logo=visualstudiocode&logoColor=white)](https://vscode.dev/redirect/mcp/install?name=lse-data&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22lse-data-mcp%22%5D%7D) [![Install in Claude Desktop](https://img.shields.io/badge/Install_in_Claude_Desktop-D97757?style=for-the-badge&logo=claude&logoColor=white)](https://github.com/OlegDyukel/lse-data-mcp/releases/latest/download/lse-data-mcp.mcpb)
 
 </div>
 
@@ -113,8 +113,10 @@ Never commit the key to this repository or put a real key in an issue, test, exa
 
 ## Installation
 
-The buttons above configure Cursor and VS Code in one click. They still need a stored API key,
-below. For any other client, or to run the server by hand, install it yourself.
+The buttons above configure Cursor and VS Code in one click; both still need a stored API key,
+below. The third installs a bundle into Claude Desktop, which collects the key itself — see
+[Claude Desktop](#claude-desktop). For any other client, or to run the server by hand, install it
+yourself.
 
 With [`uv`](https://docs.astral.sh/uv/getting-started/installation/) there is nothing to install:
 `uvx` fetches the published package, runs it in a cached environment of its own, and brings its
@@ -143,6 +145,30 @@ python -m pip install lse-data-mcp
 
 Activating that environment is what puts `lse-data-mcp` on your `PATH`, and a client will need
 its absolute path rather than the bare `uvx` command.
+
+### Claude Desktop
+
+The **Install in Claude Desktop** button above downloads a bundle that installs in one step, with
+no configuration file to edit. Two things it will not do for you:
+
+- **Install [`uv`](https://docs.astral.sh/uv/getting-started/installation/) first.** Claude Desktop
+  runs the bundle through `uv` and resolves it from your `PATH` rather than shipping its own copy.
+  If the extension fails to start, this is the first thing to check.
+- **Switch it on after installing.** The extension arrives disabled. Until you enable it under
+  Settings → Extensions, Claude will answer market-data questions by reporting that no such
+  connector is installed, which looks exactly like a broken install.
+
+Claude Desktop prompts for your API key during installation and stores it itself, encrypted. A
+bundle install therefore never touches the operating system credential store and needs no `login`
+command.
+
+The bundle is deliberately small — a manifest, a dependency pin, and a launcher that does nothing
+but call the installed package, around 2 KB packed. It contains no server code of its own: it pins
+one exact published version and installs that from PyPI, so a bundle runs the same code as
+`uvx lse-data-mcp`, and you can unzip it and read the whole thing in a minute. Claude Desktop warns
+that a file-installed extension is unverified by Anthropic and runs with your user privileges. That
+is true, and it is true of every local MCP server — read-only here describes the upstream API, which
+has no write endpoints, not a sandbox around the process.
 
 To work on the project rather than use it, see
 [CONTRIBUTING.md](https://github.com/OlegDyukel/lse-data-mcp/blob/main/CONTRIBUTING.md).
@@ -268,7 +294,8 @@ where `-s user` registers the server for every project rather than only the curr
 ```
 
 **Claude Desktop** — `claude_desktop_config.json`, and **Cursor** — `~/.cursor/mcp.json` for all
-projects or `.cursor/mcp.json` for one: same `mcpServers` object as above.
+projects or `.cursor/mcp.json` for one: same `mcpServers` object as above. On Claude Desktop the
+[bundle](#claude-desktop) is the easier route and edits no file; this is the manual alternative.
 
 **Antigravity** — `~/.gemini/config/mcp_config.json`, or the same file through **… > MCP Store >
 Manage MCP Servers > View raw config** in the agent panel: same `mcpServers` object as above. The
