@@ -27,8 +27,9 @@
 ## 3. Release pipeline
 
       — added as a step in the `quality` job, so it runs on all three Python versions
-- [ ] 3.1 Commit the pending `github-release` job in `.github/workflows/release.yml` first — this
+- [x] 3.1 Commit the pending `github-release` job in `.github/workflows/release.yml` first — this
       change builds on it and it is currently only staged
+      — landed as its own commit, 9c9a460, ahead of the bundle work
 - [x] 3.2 Add a `bundle` job: pin `@anthropic-ai/mcpb` to an exact version, run the generation step
       from 2.1, then `mcpb validate` and `mcpb pack`; upload the `.mcpb` as a workflow artifact.
       No `permissions:` block — it must stay read-only
@@ -82,19 +83,32 @@
       extended-session and volume caveats unprompted from the `get_candles` docstring. The
       credential-store half is NOT isolated: this machine's keyring holds a key, so the env var
       merely took precedence as designed. Proving independence needs a host without one.
-- [ ] 4.6 Tag a release and confirm `releases/latest/download/lse-data-mcp.mcpb` resolves and that its
+- [x] 4.6 Tag a release and confirm `releases/latest/download/lse-data-mcp.mcpb` resolves and that its
       declared version matches the tag
+      — v0.1.4, 2026-08-19: the URL returns 200, the asset is `lse-data-mcp.mcpb` (2133 bytes), the
+      manifest inside declares 0.1.4 matching the tag, its pin is `lse-data-mcp==0.1.4`, and PyPI
+      serves 0.1.4. The `github-release` download-and-attach path ran for the first time here and
+      worked. Gate 5.2 is therefore satisfied.
 
 ## 5. README
 
-- [ ] 5.1 **Gated on 4.3.** If Claude Desktop supplies its own `uv`, add the install button pointing at
+- [x] 5.1 **Gated on 4.3.** If Claude Desktop supplies its own `uv`, add the install button pointing at
       `releases/latest/download/lse-data-mcp.mcpb`. If it does not, either state the prerequisite
       beside the button or omit the button and document the manual download instead
       (`desktop-bundle` — "The documented install path states its prerequisites")
-- [ ] 5.2 Do not add the button before 4.6 passes — no visitor should ever meet a broken link
-- [ ] 5.3 Add the bundle to the install-options section of the README alongside the existing
+      — shipped 2026-08-19 on the **second** branch: the button carries a stated `uv` prerequisite.
+      **This is provisional.** Evidence shows Claude Desktop resolved the user's own uv; it was
+      never tested on a machine lacking one, so whether it falls back to fetching its own is still
+      unknown. Over-stating the prerequisite is the safe error — it costs a line, where understating
+      it strands users on a failed install. Drop the bullet if the no-uv test later comes back clean.
+      The section also documents the disabled-on-install behaviour and the unverified-extension
+      warning, neither of which was in the original plan and both of which a button user will meet.
+- [x] 5.2 Do not add the button before 4.6 passes — no visitor should ever meet a broken link
+- [x] 5.3 Add the bundle to the install-options section of the README alongside the existing
       `uvx` and editor-button paths
-- [ ] 5.4 Re-check the Cursor and VS Code buttons still resolve from the rendered README
+- [x] 5.4 Re-check the Cursor and VS Code buttons still resolve from the rendered README
+      — badge images all return 200 (cursor.com deeplink SVG, both shields.io badges). The deeplink
+      *targets* are app handlers, not HTTP, so those still need a human click to confirm.
 
 ## 6. Close out
 
