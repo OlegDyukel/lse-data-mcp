@@ -16,7 +16,7 @@
 </div>
 
 > **Versioning:** While the version is 0.x, tool names and arguments may still change between
-> releases. Pin one — `uvx lse-data-mcp==0.1.3` — if you need the surface to stay put.
+> releases. Pin one — `uvx lse-data-mcp==0.1.4` — if you need the surface to stay put.
 
 The server lets an MCP client query London Strategic Edge data through the official
 [`lse-data`](https://pypi.org/project/lse-data/) Python SDK. It runs locally over standard
