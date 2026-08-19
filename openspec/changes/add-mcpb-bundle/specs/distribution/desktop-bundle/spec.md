@@ -51,11 +51,13 @@ configuration interface, marked sensitive so the host conceals it, and pass it t
 - **WHEN** a user installs the bundle
 - **THEN** the host prompts for an API key before the server is first started
 
-#### Scenario: A missing key is refused at install, not at first call
+#### Scenario: A missing key fails at startup, not silently
 
-- **WHEN** a user attempts to complete installation with the key field left blank
-- **THEN** the host refuses to complete installation, rather than installing a server that fails on
-  its first tool call
+- **WHEN** a user completes installation with the key field left blank
+- **THEN** the host installs the extension anyway, and the server exits at startup rather than
+  serving tools with no credential
+- **AND** the exit message names the missing key and how to supply it, so the host's generic
+  "unable to connect to extension server" notice is not the only diagnostic on record
 
 #### Scenario: The key is never persisted by the project
 
