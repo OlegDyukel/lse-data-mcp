@@ -72,11 +72,39 @@
       Still unproven: whether it falls back to downloading uv when none is found. That needs the
       binary temporarily renamed and the app restarted — until then, assume the prerequisite is
       real and ship §5.1 on the second branch (stated prerequisite, or no button).
-- [ ] 4.4 Confirm Claude Desktop prompts for the API key at install, and that leaving it blank blocks
+      — **Test attempt 2026-08-19 was INVALID.** Hiding `~/.local/bin/uv` (0.12.0) left a second
+      installation on PATH — Homebrew's `/usr/local/bin/uv` (0.11.16), which is what built the venv
+      (`pyvenv.cfg` records `uv = 0.11.16`). A valid test needs both `mv ~/.local/bin/uv …` and
+      `brew unlink uv`.
+      — Try this first, because the prerequisite may be self-inflicted: the manifest pins
+      `mcp_config.command: "uv"`, forcing a PATH lookup. MCPB documents `mcp_config` as *optional*
+      for `type: "uv"` because the host manages execution, so omitting it may let Claude Desktop use
+      its own runtime and remove the prerequisite entirely — a manifest fix rather than a README
+      caveat, and it would change §5.1.
+      — **Experiment run 2026-08-19: the theory is FALSIFIED, the prerequisite is inherent.** The
+      MCPB v0.4 schema (`mcpb-manifest-v0.4.schema.json`, shipped in `@anthropic-ai/mcpb@2.1.2`,
+      the newest release and newest schema) declares `server.required = [type, entry_point,
+      mcp_config]` and `mcp_config.required = [command]`. The field cannot be omitted, and whatever
+      command it names is resolved from PATH. The package documents no template variable pointing at
+      a host-managed runtime.
+      — Supporting evidence that the prerequisite is real rather than merely unproven: `Claude.app`
+      and its support directory contain no `uv` binary, and both observed runs used a
+      user-installed one from PATH (0.12.0 at the first install, Homebrew's 0.11.16 at the second).
+      A clean confirmation still needs `mv ~/.local/bin/uv …` **and** `brew unlink uv`, but the
+      README bullet as written is very likely correct and is the safe wording regardless.
+- [x] 4.4 Confirm Claude Desktop prompts for the API key at install, and that leaving it blank blocks
       installation rather than deferring the error to the first tool call
       — partial 2026-08-19: the key is collected and stored by the host as
       `__encrypted__:...` in `Claude Extensions Settings/<id>.json`, so the project persists nothing.
-      The blank-field behaviour was not exercised and remains untested.
+      — **ANSWERED 2026-08-19, and the spec scenario is wrong.** Installing with the key field left
+      blank is *accepted*: the extension installed and enabled with no `userConfig` key at all, and
+      the failure surfaced later as "Unable to connect to extension server" when the server exited
+      at startup (`config.py:38` raises when no key resolves). The host does NOT refuse a blank key
+      at install — it defers to first start. The scenario "A missing key is refused at install, not
+      at first call" must be rewritten to describe the deferred failure before archiving.
+      — Also observed twice: **saving the API key switches the extension back off.** With the
+      disabled-on-install behaviour, a user meets the disabled state at two separate moments. The
+      README now warns about both.
 - [x] 4.5 Confirm a tool call returns rows on that host, with the OS credential store never consulted
       (`desktop-bundle` — "A bundle install does not depend on the OS credential store")
       — 2026-08-19: five IBM daily candles returned in Claude Desktop, and Claude surfaced the
@@ -115,7 +143,7 @@
 - [x] 6.1 `ruff format . && ruff check . && mypy src tests && pytest` — no `src/` change is expected,
       so this is a regression check that the repository is still clean
       — 2026-08-19: ruff format (17 files), ruff check, mypy (15 files), pytest 159 passed, 99%
-- [ ] 6.2 Delete `docs/superpowers/specs/2026-08-09-readme-header-and-mcpb-bundle-design.md`; this
+- [x] 6.2 Delete `docs/superpowers/specs/2026-08-09-readme-header-and-mcpb-bundle-design.md`; this
       change supersedes it
 - [ ] 6.3 Run `/openspec-archive-change add-mcpb-bundle` to fold the delta into
       `openspec/specs/distribution/desktop-bundle/spec.md`

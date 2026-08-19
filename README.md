@@ -154,9 +154,10 @@ no configuration file to edit. Two things it will not do for you:
 - **Install [`uv`](https://docs.astral.sh/uv/getting-started/installation/) first.** Claude Desktop
   runs the bundle through `uv` and resolves it from your `PATH` rather than shipping its own copy.
   If the extension fails to start, this is the first thing to check.
-- **Switch it on after installing.** The extension arrives disabled. Until you enable it under
-  Settings → Extensions, Claude will answer market-data questions by reporting that no such
-  connector is installed, which looks exactly like a broken install.
+- **Switch it on — and check it again after saving the key.** The extension arrives disabled, and
+  saving the API key can switch it off a second time. While it is off, Claude reports that no such
+  connector is installed, or that it has disconnected; both look like a broken install and neither
+  is. The toggle is under Settings → Extensions.
 
 Claude Desktop prompts for your API key during installation and stores it itself, encrypted. A
 bundle install therefore never touches the operating system credential store and needs no `login`
