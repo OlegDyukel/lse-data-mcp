@@ -381,7 +381,18 @@ async def get_company_profile(symbol: str, limit: int = 200) -> ToolResponse:
 
 
 async def get_fundamentals(symbol: str, limit: int = 200) -> ToolResponse:
-    """Return fundamental data for a ticker."""
+    """Return a point-in-time fundamentals snapshot for a ticker.
+
+    One row per symbol - market cap, PE, margins, 52-week range, dividend
+    yield - not a history, so there is nothing here to compare across time and
+    ``limit`` makes little difference.
+
+    The row is a snapshot taken at ``updated_at``, not live. ``current_price``
+    is that snapshot's price, and ``market_cap``, ``pe_ratio`` and
+    ``dividend_yield`` are derived from it, so they all age together and can
+    disagree with the latest close. Quote ``updated_at`` alongside them, and
+    take a current price from ``get_candles`` rather than from this row.
+    """
     symbol = _validate_symbol(symbol)
     limit = _validate_limit(limit)
     return await _call_upstream(
@@ -400,7 +411,25 @@ async def get_insider_transactions(
     order: Order = "desc",
     limit: int = 200,
 ) -> ToolResponse:
-    """Return reported insider transactions for a ticker."""
+    """Return reported SEC Form 3/4/5 insider transactions for a ticker.
+
+    ``transaction_type`` takes an SEC code, such as ``P-Purchase``, ``S-Sale``,
+    ``M-Exempt`` or ``F-InKind``. An unrecognised value returns zero rows
+    rather than an error, so a guessed code is indistinguishable from a genuine
+    quiet period - prefer omitting it and filtering the rows yourself.
+
+    Direction is ``acquisition_or_disposition`` (``A`` or ``D``), not
+    ``transaction_type``: ``M-Exempt`` appears in both directions. ``price`` is
+    0 on exercises and grants, so ``securities_transacted`` times ``price``
+    understates value, and ``F-InKind`` is stock withheld to cover tax rather
+    than an open-market sale. One filing expands into several rows - a single
+    vest can produce an exercise, a withholding and a disposal - so rows are
+    legs, not trades, and counting them overstates activity.
+
+    ``start`` and ``end`` filter ``transaction_date``. ``filing_date`` is
+    separate and later, and rows are ingested later still, so a window over
+    recent dates keeps filling in after the fact.
+    """
     symbol = _validate_symbol(symbol)
     limit = _validate_limit(limit)
     start = _validate_timestamp("start", start)
@@ -424,7 +453,19 @@ async def get_dividends(
     order: Order = "desc",
     limit: int = 200,
 ) -> ToolResponse:
-    """Return dividend events for a ticker."""
+    """Return dividend events for a ticker, newest first by default.
+
+    ``start`` and ``end`` filter ``effective_date``, the ex-date. Each row also
+    carries ``declaration_date``, ``record_date`` and ``payment_date``, which
+    fall in different months - a May ex-date can pay in June - so a question
+    about when a dividend was *paid* is not answered by this window. Read the
+    date the question actually asks about out of the row.
+
+    ``dividend_type`` and ``frequency`` are not a controlled vocabulary: the
+    same quarterly dividend appears as ``CD`` and as ``Regular``, and its
+    ``frequency`` as both ``4`` and ``Quarterly``. Do not filter or group on
+    either; use the dates and ``dividend_amount``.
+    """
     symbol = _validate_symbol(symbol)
     limit = _validate_limit(limit)
     start = _validate_timestamp("start", start)

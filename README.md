@@ -83,9 +83,10 @@ rejected there, so narrow a `1s` or `1m` window by filtering the rows that come 
 
 ## Data caveats
 
-Two upstream conventions are worth knowing before you quote a number. Both were measured by
-comparing this API against other market-data sources, and both are open questions with the
-provider.
+Some upstream conventions are worth knowing before you quote a number. The first two were
+measured by comparing this API against other market-data sources, and both are open questions
+with the provider. Every caveat below is also carried in the relevant tool's description, so the
+model reads it on each call rather than only here.
 
 - **Daily candles cover the extended session**, 08:00–23:00 UTC (04:00–19:00 ET), not the regular
   session. A daily `close` is the last post-market print rather than the 16:00 ET closing auction,
@@ -96,6 +97,20 @@ provider.
   ranged from 45% to 106% of a consolidated-tape source, with no stable relationship to date,
   volume level, or bar age. The closing auction appears in some sessions and not others. Do not
   use this field for liquidity, participation, or turnover conclusions.
+- **Fundamentals are a dated snapshot, not a live quote.** `get_fundamentals` returns one row per
+  symbol, stamped `updated_at`. Its `current_price` is that snapshot's price, and `market_cap`,
+  `pe_ratio` and `dividend_yield` derive from it, so all four age together and can disagree with
+  the latest close. Take a current price from `get_candles`.
+- **Dividend rows carry four different dates.** `start` and `end` filter `effective_date`, the
+  ex-date, while `declaration_date`, `record_date` and `payment_date` sit in the row and fall in
+  other months. `dividend_type` and `frequency` are not a controlled vocabulary — the same
+  quarterly dividend appears as both `CD` and `Regular`, and its frequency as both `4` and
+  `Quarterly` — so neither is safe to filter or group on.
+- **Insider rows are filing legs, not trades.** `transaction_type` takes SEC codes
+  (`P-Purchase`, `S-Sale`, `M-Exempt`, `F-InKind`); an unrecognised value returns zero rows rather
+  than an error, so a wrong code looks like a quiet period. Direction is
+  `acquisition_or_disposition`, not `transaction_type`. `price` is 0 on exercises and grants, and
+  a single vest expands into several rows, so both value and count are easy to misread.
 
 ## Obtain an API key
 
