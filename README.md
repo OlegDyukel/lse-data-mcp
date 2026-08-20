@@ -16,7 +16,7 @@
 </div>
 
 > **Versioning:** While the version is 0.x, tool names and arguments may still change between
-> releases. Pin one — `uvx lse-data-mcp==0.1.4` — if you need the surface to stay put.
+> releases. Pin one — `uvx lse-data-mcp==0.1.5` — if you need the surface to stay put.
 
 The server lets an MCP client query London Strategic Edge data through the official
 [`lse-data`](https://pypi.org/project/lse-data/) Python SDK. It runs locally over standard
@@ -333,7 +333,7 @@ Restart the client after editing its configuration; MCP servers are spawned at c
 Two things to know about `command: "uvx"`. A client launched from the desktop rather than a
 terminal may not have `uvx` on its `PATH`; give the absolute path from `which uvx` if the server
 fails to start. And `uvx` fetches the latest release each time its cache expires, so the server
-updates itself — pin with `["lse-data-mcp==0.1.0"]` if you would rather it did not.
+updates itself — pin with `["lse-data-mcp==0.1.5"]` if you would rather it did not.
 
 <details>
 <summary>Pointing at a virtual environment instead</summary>
