@@ -65,3 +65,43 @@ def test_main_uses_stdio(monkeypatch: pytest.MonkeyPatch) -> None:
     server.main()
 
     assert transports == ["stdio"]
+
+
+async def _description(name: str) -> str:
+    registered = await server.mcp.list_tools()
+    tool = next(tool for tool in registered if tool.name == name)
+    assert tool.description is not None
+    return tool.description
+
+
+@pytest.mark.anyio
+async def test_fundamentals_description_warns_the_snapshot_price_is_stale() -> None:
+    """``current_price`` and everything derived from it lag ``updated_at``."""
+    description = await _description("get_fundamentals")
+
+    assert "updated_at" in description
+    assert "get_candles" in description
+    for derived in ("market_cap", "pe_ratio", "dividend_yield"):
+        assert derived in description
+
+
+@pytest.mark.anyio
+async def test_dividends_description_distinguishes_the_four_date_fields() -> None:
+    """``start``/``end`` filter the ex-date only, and the labels are unreliable."""
+    description = await _description("get_dividends")
+
+    for field in ("effective_date", "declaration_date", "record_date", "payment_date"):
+        assert field in description
+    assert "dividend_type" in description
+    assert "frequency" in description
+
+
+@pytest.mark.anyio
+async def test_insider_transactions_description_warns_about_codes_and_price() -> None:
+    """Direction is ``acquisition_or_disposition``; exercises report ``price`` 0."""
+    description = await _description("get_insider_transactions")
+
+    assert "M-Exempt" in description
+    assert "acquisition_or_disposition" in description
+    assert "F-InKind" in description
+    assert "price" in description
