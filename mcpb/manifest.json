@@ -2,7 +2,7 @@
   "manifest_version": "0.4",
   "name": "lse-data-mcp",
   "display_name": "London Strategic Edge Market Data (unofficial)",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Unofficial, read-only MCP server for the London Strategic Edge market-data API",
   "long_description": "Exposes London Strategic Edge market data to Claude as 15 read-only tools: candles, company profiles, fundamentals, financial reports, dividends, splits, insider transactions, options chains and flow, CFTC positioning, government bond yields, economic data, and discovery of instruments and datasets. The server runs locally, never writes or caches upstream data, and requires your own API key. This project is not affiliated with London Strategic Edge.",
   "author": {
