@@ -24,7 +24,9 @@ Work top to bottom. Every step here exists because skipping it cost something.
       stale one is repeated with confidence rather than sitting unread.
 - [ ] **Bump `version` in `pyproject.toml`**, then
       `python scripts/sync_bundle_version.py` so the bundle's manifest and pin
-      match. `--check` verifies without writing; CI runs it.
+      and the README's two `lse-data-mcp==` pin examples all follow. That one
+      file is the only place the number is written by hand. `--check` verifies
+      without writing; CI runs it on every push.
 - [ ] **Run the four checks locally**: `ruff format --check .`, `ruff check .`,
       `mypy src tests`, `pytest`.
 - [ ] **Update `README.md`** if the tool surface moved. Tool names and arguments
