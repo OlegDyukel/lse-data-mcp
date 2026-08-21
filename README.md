@@ -91,12 +91,14 @@ model reads it on each call rather than only here.
 - **Daily candles cover the extended session**, 08:00–23:00 UTC (04:00–19:00 ET), not the regular
   session. A daily `close` is the last post-market print rather than the 16:00 ET closing auction,
   so it differs from the close quoted by most retail sources — usually by a few cents, in either
-  direction depending on post-market drift. Intraday highs and lows match the consolidated tape.
-  The prices are not wrong; the session boundary is different.
-- **Volume is indicative only.** Across fifteen sessions of one large-cap US equity, daily volume
-  ranged from 45% to 106% of a consolidated-tape source, with no stable relationship to date,
-  volume level, or bar age. The closing auction appears in some sessions and not others. Do not
-  use this field for liquidity, participation, or turnover conclusions.
+  direction depending on post-market drift. Intraday highs and lows matched Financial Modeling
+  Prep's over the same sessions (measured Aug 2026). The prices are not wrong; the session
+  boundary is different.
+- **Volume is indicative only.** Measured Aug 2026: across fifteen sessions of IBM, daily volume
+  ranged from 45% to 106% of what Financial Modeling Prep reported for the same sessions, with no
+  stable relationship to date, volume level, or bar age. The closing auction appears in some
+  sessions and not others. That is two vendors disagreeing rather than proof either is wrong — but
+  it is reason enough not to use this field for liquidity, participation, or turnover conclusions.
 - **Fundamentals are a dated snapshot, not a live quote.** `get_fundamentals` returns one row per
   symbol, stamped `updated_at`. Its `current_price` is that snapshot's price, and `market_cap`,
   `pe_ratio` and `dividend_yield` derive from it, so all four age together and can disagree with
