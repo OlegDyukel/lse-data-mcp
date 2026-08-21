@@ -343,10 +343,10 @@ async def get_candles(
     either direction. Say which close you are quoting, and do not treat a
     difference from another source as an error.
 
-    Treat ``volume`` as indicative only. Measured against a consolidated-tape
-    source over fifteen sessions it ranged from 45% to 106% of that source's
-    figure, with no stable pattern, so it does not support liquidity,
-    participation or turnover claims.
+    Treat ``volume`` as indicative only. Measured Aug 2026 against Financial
+    Modeling Prep over fifteen sessions of IBM, it ranged from 45% to 106% of
+    that source's figure, with no stable pattern, so it does not support
+    liquidity, participation or turnover claims.
 
     ``start`` and ``end`` filter by date. The upstream API rejects an intraday
     timestamp here, so narrow a ``1s`` or ``1m`` window by filtering the rows

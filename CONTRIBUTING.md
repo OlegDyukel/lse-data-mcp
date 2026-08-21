@@ -38,3 +38,10 @@ Keep the adapter thin and read-only. New tools should:
 3. avoid caching or persisting provider data;
 4. include mocked tests;
 5. translate upstream errors without exposing credentials.
+
+## Releasing
+
+Maintainers: `docs/releasing.md` is the checklist. The workflow handles the
+mechanics on a `v*` tag; the checklist covers what it cannot — confirming the
+payload is on `main`, re-checking the dated empirical caveats, and the GitHub
+Release step that is deliberately manual.
