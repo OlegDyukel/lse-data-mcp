@@ -43,5 +43,5 @@ Keep the adapter thin and read-only. New tools should:
 
 Maintainers: `docs/releasing.md` is the checklist. The workflow handles the
 mechanics on a `v*` tag; the checklist covers what it cannot: confirming the
-payload is on `main`, re-checking the dated empirical caveats, and the GitHub
-Release step that is deliberately manual.
+payload is on `main`, re-checking the dated empirical caveats, and confirming
+what was actually published.

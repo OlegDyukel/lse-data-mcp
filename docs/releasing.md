@@ -2,9 +2,9 @@
 
 `release.yml` does the mechanical half on a `v*` tag push: it re-runs the four
 checks against the tagged commit, refuses to publish when the tag and
-`pyproject.toml` disagree, uploads to PyPI through Trusted Publishing, and packs
-the Claude Desktop bundle. This file is the half the workflow cannot do: the
-judgement calls and the one step it deliberately leaves manual.
+`pyproject.toml` disagree, uploads to PyPI through Trusted Publishing, packs the
+Claude Desktop bundle, and creates the GitHub Release with the bundle attached.
+This file is the half the workflow cannot do: the judgement calls.
 
 Work top to bottom. Every step here exists because skipping it cost something.
 
@@ -42,10 +42,12 @@ Work top to bottom. Every step here exists because skipping it cost something.
 
 ## After the workflow is green
 
-- [ ] **Create the GitHub Release by hand**:
-      `gh release create vX.Y.Z --generate-notes`. The workflow never does this,
-      and it has been forgotten before: v0.1.2 and v0.1.3 have tags and no
-      Release entry.
+- [ ] **Confirm the GitHub Release exists with the bundle attached**:
+      `gh release view vX.Y.Z --json assets --jq '[.assets[].name]'` prints
+      `["lse-data-mcp.mcpb"]`. The workflow's `github-release` job creates it
+      once PyPI and the bundle both succeed. Never run `gh release create` by
+      hand: a Release made first has no bundle, the job then fails on it, and
+      the README's install button points at a missing asset.
 - [ ] **Verify the published artifact**, not the working tree: install the real
       version in a clean venv and read back whatever the release was for, e.g.
       the length of the docstrings that changed.
