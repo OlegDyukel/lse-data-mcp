@@ -10,7 +10,7 @@ The README's two `lse-data-mcp==` pin examples are generated for the same
 reason. Nothing breaks when they go stale, which is exactly the problem: a
 reader copies the example and pins an old release without noticing.
 
-So there is one source of truth — `version` in the root `pyproject.toml` — and
+So there is one source of truth (`version` in the root `pyproject.toml`), and
 the release workflow runs this before packing.
 
     python scripts/sync_bundle_version.py            # write
@@ -36,7 +36,7 @@ BUNDLE = ROOT / "mcpb"
 # loses one fails the release instead of being half-rewritten.
 #
 # The bundle rules anchor to the start of the line, which is what keeps
-# `"version"` in manifest.json from also matching `"manifest_version"` — a
+# `"version"` in manifest.json from also matching `"manifest_version"`, a
 # schema version that must not track the release. The README rule cannot do
 # that: its pins sit mid-sentence in prose that gets reflowed, so it anchors to
 # the pin itself and expects both occurrences.

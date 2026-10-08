@@ -5,7 +5,7 @@ This project is currently an early-stage open-source project.
 ## Development setup
 
 Python 3.11 or newer is required. macOS ships an older `python3`, so check before creating the
-environment and use a supported interpreter by name if needed — `brew install python@3.13`, then
+environment and use a supported interpreter by name if needed: `brew install python@3.13`, then
 `python3.13`. On Windows, use `py -3.13`.
 
 ```bash
@@ -42,6 +42,6 @@ Keep the adapter thin and read-only. New tools should:
 ## Releasing
 
 Maintainers: `docs/releasing.md` is the checklist. The workflow handles the
-mechanics on a `v*` tag; the checklist covers what it cannot — confirming the
+mechanics on a `v*` tag; the checklist covers what it cannot: confirming the
 payload is on `main`, re-checking the dated empirical caveats, and the GitHub
 Release step that is deliberately manual.

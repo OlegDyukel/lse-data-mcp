@@ -142,7 +142,7 @@ jobs:
   # manifest, a dependency pin, and a launcher that imports the installed package.
   #
   # Deliberately no `permissions:` block. The workflow default is read, and this
-  # job runs third-party npm tooling over the repository — that must never hold a
+  # job runs third-party npm tooling over the repository, so it must never hold a
   # token which can write to it.
   bundle:
     name: Build the Claude Desktop bundle
@@ -171,7 +171,7 @@ jobs:
         run: npx --yes @anthropic-ai/mcpb@2.1.2 validate mcpb/manifest.json
 
       # The output path is explicit. Given no second argument the CLI names the
-      # archive after the directory it packed — mcpb.mcpb — which would not match
+      # archive after the directory it packed (mcpb.mcpb), which would not match
       # the releases/latest/download/lse-data-mcp.mcpb URL the README links to.
       - name: Pack the bundle
         run: |

@@ -1,7 +1,7 @@
 # The bundle's dependency declaration, not a package of its own.
 #
 # There is deliberately no [build-system] table: that is what makes `uv` treat
-# this directory as a virtual project — an environment to resolve rather than a
+# this directory as a virtual project: an environment to resolve rather than a
 # package to build. Adding one would make `uv` try to build the bundle and fail.
 #
 # The version and the pin below are generated from the root pyproject.toml by
