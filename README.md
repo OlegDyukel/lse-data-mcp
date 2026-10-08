@@ -359,8 +359,10 @@ Restart the client after editing its configuration; MCP servers are spawned at c
 
 Two things to know about `command: "uvx"`. A client launched from the desktop rather than a
 terminal may not have `uvx` on its `PATH`; give the absolute path from `which uvx` if the server
-fails to start. And `uvx` fetches the latest release each time its cache expires, so the server
-updates itself. Pin with `["lse-data-mcp==0.1.7"]` if you would rather it did not.
+fails to start. And `uvx` does not update the server on its own: it downloads the latest release
+the first time, then keeps running that cached copy. To move to a newer release, run
+`uvx lse-data-mcp@latest --help` once, which fetches it and refreshes the cache, then restart the
+client. To stay on one release whatever the cache holds, pin it with `["lse-data-mcp==0.1.7"]`.
 
 <details>
 <summary>Pointing at a virtual environment instead</summary>
