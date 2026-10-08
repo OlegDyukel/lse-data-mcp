@@ -54,7 +54,7 @@ ReferenceResource = Literal[
 # unknown name costs no API call, and because upstream answers one with an empty
 # result rather than an error: indistinguishable from a valid class holding no
 # rows. The trap is that get_reference("reference") calls its own vocabulary
-# "dataset" too — dividends, insider_trades, options_flow — and the two do not
+# "dataset" too (dividends, insider_trades, options_flow), and the two do not
 # overlap, so a name carried from one to the other silently returns nothing.
 Dataset = Literal[
     "bond_futures",
@@ -313,7 +313,7 @@ async def _call_upstream(
     """Run a blocking SDK call off the event loop and normalise its result.
 
     Every SDK read is synchronous ``urllib``, so calling one inline would stall
-    the whole server — including cancellations and other tool calls — for up to
+    the whole server, including cancellations and other tool calls, for up to
     ``LSE_TIMEOUT_SECONDS``.
     """
     call = functools.partial(method, *args, **kwargs)
@@ -553,8 +553,8 @@ async def get_bond_yields(
 ) -> ToolResponse:
     """Return government bond yield history, oldest first by default.
 
-    Daily open, high, low and close per tenor symbol — ``US10Y``, ``DE02Y`` and
-    the like — covering 31 countries back to 1990. Omit ``symbol`` for every
+    Daily open, high, low and close per tenor symbol (``US10Y``, ``DE02Y`` and
+    the like), covering 31 countries back to 1990. Omit ``symbol`` for every
     tenor. Use ``get_reference('catalog', category='bonds')`` to discover which
     tenors exist.
 

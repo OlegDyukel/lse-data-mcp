@@ -16,12 +16,35 @@
 </div>
 
 > **Versioning:** While the version is 0.x, tool names and arguments may still change between
-> releases. Pin one — `uvx lse-data-mcp==0.1.6` — if you need the surface to stay put.
+> releases. Pin one (`uvx lse-data-mcp==0.1.6`) if you need the surface to stay put.
 
 The server lets an MCP client query London Strategic Edge data through the official
 [`lse-data`](https://pypi.org/project/lse-data/) Python SDK. It runs locally over standard
 input/output, uses the API key supplied by the user, returns the upstream JSON-compatible rows,
 and does not cache or persist responses.
+
+## Set up with your agent
+
+An AI agent that can run commands on your computer, such as Claude Code, Codex or Cursor's agent,
+can do the [installation](#installation) for you. It can also set up a different app from the one
+it runs in. Have your [API key](#obtain-an-api-key) ready, then paste this prompt:
+
+```text
+Set up the lse-data-mcp MCP server on this computer by following
+https://github.com/OlegDyukel/lse-data-mcp/blob/main/docs/agent-setup.md
+
+MCP client to configure: <name it, e.g. Claude Desktop; if left like this, ask me>
+
+Do the setup yourself rather than describing it. Reuse a working lse-data setup if
+there is one, add no duplicate entries, and leave unrelated settings untouched.
+Never ask me to paste my API key into this chat. Have me type it into the hidden
+login prompt in my own terminal, or into the client's own secure key field.
+Verify each stage the guide lists. Finish with a short report of what you changed,
+what you checked, the results, and anything still left for me to do.
+```
+
+The agent follows the [agent setup guide](https://github.com/OlegDyukel/lse-data-mcp/blob/main/docs/agent-setup.md).
+You can read it first to see exactly what the agent will do. The agent never needs to see your key.
 
 ## Supported tools
 
@@ -59,8 +82,8 @@ silently dropped.
 | `get_economic_calendar` | Scheduled or released economic events | `region`, `event`, `start`, `end`, `released_only`, `limit`, `order` |
 | `get_reference` | Vault discovery: instruments, datasets, timeframes | `resource`, `category`, `dataset` |
 
-`get_reference` groups five discovery endpoints — `catalog`, `datasets`, `reference`,
-`vault_meta`, `options_underlyings` — behind one `resource` argument, because they take
+`get_reference` groups five discovery endpoints (`catalog`, `datasets`, `reference`,
+`vault_meta`, `options_underlyings`) behind one `resource` argument, because they take
 almost no arguments between them. `category` applies only to `catalog` and `dataset` only to
 `datasets`; passing either to a resource that ignores it is an **error, not a silent no-op**,
 so a grouped tool can never quietly drop a filter you meant. Data tools stay one-to-one with
@@ -90,14 +113,14 @@ model reads it on each call rather than only here.
 
 - **Daily candles cover the extended session**, 08:00–23:00 UTC (04:00–19:00 ET), not the regular
   session. A daily `close` is the last post-market print rather than the 16:00 ET closing auction,
-  so it differs from the close quoted by most retail sources — usually by a few cents, in either
+  so it differs from the close quoted by most retail sources, usually by a few cents, in either
   direction depending on post-market drift. Intraday highs and lows matched Financial Modeling
   Prep's over the same sessions (measured Aug 2026). The prices are not wrong; the session
   boundary is different.
 - **Volume is indicative only.** Measured Aug 2026: across fifteen sessions of IBM, daily volume
   ranged from 45% to 106% of what Financial Modeling Prep reported for the same sessions, with no
   stable relationship to date, volume level, or bar age. The closing auction appears in some
-  sessions and not others. That is two vendors disagreeing rather than proof either is wrong — but
+  sessions and not others. That is two vendors disagreeing rather than proof either is wrong, but
   it is reason enough not to use this field for liquidity, participation, or turnover conclusions.
 - **Fundamentals are a dated snapshot, not a live quote.** `get_fundamentals` returns one row per
   symbol, stamped `updated_at`. Its `current_price` is that snapshot's price, and `market_cap`,
@@ -105,9 +128,9 @@ model reads it on each call rather than only here.
   the latest close. Take a current price from `get_candles`.
 - **Dividend rows carry four different dates.** `start` and `end` filter `effective_date`, the
   ex-date, while `declaration_date`, `record_date` and `payment_date` sit in the row and fall in
-  other months. `dividend_type` and `frequency` are not a controlled vocabulary — the same
+  other months. `dividend_type` and `frequency` are not a controlled vocabulary: the same
   quarterly dividend appears as both `CD` and `Regular`, and its frequency as both `4` and
-  `Quarterly` — so neither is safe to filter or group on.
+  `Quarterly`, so neither is safe to filter or group on.
 - **Insider rows are filing legs, not trades.** `transaction_type` takes SEC codes
   (`P-Purchase`, `S-Sale`, `M-Exempt`, `F-InKind`); an unrecognised value returns zero rows rather
   than an error, so a wrong code looks like a quiet period. Direction is
@@ -131,7 +154,7 @@ Never commit the key to this repository or put a real key in an issue, test, exa
 ## Installation
 
 The buttons above configure Cursor and VS Code in one click; both still need a stored API key,
-below. The third installs a bundle into Claude Desktop, which collects the key itself — see
+below. The third installs a bundle into Claude Desktop, which collects the key itself; see
 [Claude Desktop](#claude-desktop). For any other client, or to run the server by hand, install it
 yourself.
 
@@ -146,7 +169,7 @@ uvx lse-data-mcp status
 
 Whichever command you use here, use the same one in your MCP client below. Mixing `uvx` with a
 virtual environment means two different interpreters touch the credential store, which on macOS
-raises an extra Keychain prompt — see [When the server cannot find your
+raises an extra Keychain prompt; see [When the server cannot find your
 key](#when-the-server-cannot-find-your-key).
 
 Without `uv`, install the same release from PyPI with pip. Check your interpreter first: macOS
@@ -171,7 +194,7 @@ no configuration file to edit. Two things it will not do for you:
 - **Install [`uv`](https://docs.astral.sh/uv/getting-started/installation/) first.** Claude Desktop
   runs the bundle through `uv` and resolves it from your `PATH` rather than shipping its own copy.
   If the extension fails to start, this is the first thing to check.
-- **Switch it on — and check it again after saving the key.** The extension arrives disabled, and
+- **Switch it on, and check it again after saving the key.** The extension arrives disabled, and
   saving the API key can switch it off a second time. While it is off, Claude reports that no such
   connector is installed, or that it has disconnected; both look like a broken install and neither
   is. The toggle is under Settings → Extensions.
@@ -180,12 +203,12 @@ Claude Desktop prompts for your API key during installation and stores it itself
 bundle install therefore never touches the operating system credential store and needs no `login`
 command.
 
-The bundle is deliberately small — a manifest, a dependency pin, and a launcher that does nothing
+The bundle is deliberately small: a manifest, a dependency pin, and a launcher that does nothing
 but call the installed package, around 2 KB packed. It contains no server code of its own: it pins
 one exact published version and installs that from PyPI, so a bundle runs the same code as
 `uvx lse-data-mcp`, and you can unzip it and read the whole thing in a minute. Claude Desktop warns
 that a file-installed extension is unverified by Anthropic and runs with your user privileges. That
-is true, and it is true of every local MCP server — read-only here describes the upstream API, which
+is true, and it is true of every local MCP server. Read-only here describes the upstream API, which
 has no write endpoints, not a sandbox around the process.
 
 To work on the project rather than use it, see
@@ -218,8 +241,8 @@ The server resolves its key in this order:
 2. the credential store written by `lse-data-mcp login`;
 3. otherwise it reports that no key is configured and names both ways to supply one.
 
-The environment wins so that a host injecting the key directly — a container, a CI job, or an MCP
-client with its own secret manager — stays authoritative over whatever an earlier `login` left on
+The environment wins so that a host injecting the key directly (a container, a CI job, or an MCP
+client with its own secret manager) stays authoritative over whatever an earlier `login` left on
 the machine.
 
 **Headless hosts.** Secret Service needs a D-Bus session, so a container, an SSH session, or a
@@ -252,7 +275,7 @@ On macOS you may see a dialog like this the first time a given command reads you
 
 This is expected, and it is macOS asking rather than this server. Keychain records which binary
 created an entry and asks before letting a different one read it. The dialog names a bare
-`python3.11` because that is the interpreter running the tool — under `uvx`, a Python that `uv`
+`python3.11` because that is the interpreter running the tool: under `uvx`, a Python that `uv`
 manages and that macOS has no signature for.
 
 - **Password**: your macOS login password, the one you use to unlock the Mac. Not your API key.
@@ -267,7 +290,7 @@ lse-data-mcp login         # if your client runs a virtual environment's script
 ```
 
 It can return after `uv` upgrades its managed Python, since that is a new binary. If you would
-rather never see it — on a shared machine, or in an automated environment — set `LSE_API_KEY` in
+rather never see it (on a shared machine, or in an automated environment), set `LSE_API_KEY` in
 the MCP client's environment for this server instead, which bypasses the credential store.
 
 `.env.example` is a reference only. The server deliberately does not load `.env` files: a `.env`
@@ -281,8 +304,8 @@ is plain text on disk, which is what the credential store exists to avoid.
 | `LSE_TIMEOUT_SECONDS` | No | `60` | Timeout for each upstream REST request; must be positive |
 | `LSE_MAX_RESPONSE_BYTES` | No | `131072` | Serialized-JSON budget for one tool result; must be a positive whole number |
 
-An MCP client starts the server for you. To run it by hand — to see a startup error directly,
-say — use the same command your client does, after storing a key:
+An MCP client starts the server for you. To run it by hand (to see a startup error directly,
+say), use the same command your client does, after storing a key:
 
 ```bash
 uvx lse-data-mcp
@@ -297,7 +320,7 @@ input, so an empty, hanging terminal means it started correctly. Press Ctrl-C to
 Because the server resolves its own key, no client configuration below contains a secret, and
 because `uvx` resolves the package, none of them needs a path.
 
-**Claude Code** — `~/.claude.json`, or run `claude mcp add -s user lse-data -- uvx lse-data-mcp`,
+**Claude Code**: `~/.claude.json`, or run `claude mcp add -s user lse-data -- uvx lse-data-mcp`,
 where `-s user` registers the server for every project rather than only the current one:
 
 ```json
@@ -311,16 +334,16 @@ where `-s user` registers the server for every project rather than only the curr
 }
 ```
 
-**Claude Desktop** — `claude_desktop_config.json`, and **Cursor** — `~/.cursor/mcp.json` for all
+**Claude Desktop**: `claude_desktop_config.json`, and **Cursor**: `~/.cursor/mcp.json` for all
 projects or `.cursor/mcp.json` for one: same `mcpServers` object as above. On Claude Desktop the
 [bundle](#claude-desktop) is the easier route and edits no file; this is the manual alternative.
 
-**Antigravity** — `~/.gemini/config/mcp_config.json`, or the same file through **… > MCP Store >
+**Antigravity**: `~/.gemini/config/mcp_config.json`, or the same file through **… > MCP Store >
 Manage MCP Servers > View raw config** in the agent panel: same `mcpServers` object as above. The
 install buttons cannot help here, because a browser can only hand a link to the editor that claims
 the URL scheme it names, and each VS Code fork registers its own.
 
-**Codex** — `~/.codex/config.toml`, which is TOML rather than JSON, or run
+**Codex**: `~/.codex/config.toml`, which is TOML rather than JSON, or run
 `codex mcp add lse-data -- uvx lse-data-mcp`. That file is user-global, so there is no scope to
 choose:
 
@@ -335,7 +358,7 @@ Restart the client after editing its configuration; MCP servers are spawned at c
 Two things to know about `command: "uvx"`. A client launched from the desktop rather than a
 terminal may not have `uvx` on its `PATH`; give the absolute path from `which uvx` if the server
 fails to start. And `uvx` fetches the latest release each time its cache expires, so the server
-updates itself — pin with `["lse-data-mcp==0.1.6"]` if you would rather it did not.
+updates itself. Pin with `["lse-data-mcp==0.1.6"]` if you would rather it did not.
 
 <details>
 <summary>Pointing at a virtual environment instead</summary>
@@ -404,7 +427,7 @@ during an active limit and lets the MCP client decide when to retry.
 - `get_options_flow` covers the trailing week only. Older prints are served as one-minute bars by
   `get_option_candles`, whose bars are option premium, not the underlying's price.
 - The provider does not document which date field `get_financial_reports` filters on with `start`
-  and `end` — the period end, the fiscal period, or the filing date. Until that is confirmed,
+  and `end`: the period end, the fiscal period, or the filing date. Until that is confirmed,
   prefer `period` for selecting a fiscal period and treat a date window as approximate.
 - `get_cot` reports a weekly survey, not a live position: the CFTC publishes on Friday for the
   preceding Tuesday, so the newest row lags the market by several days.

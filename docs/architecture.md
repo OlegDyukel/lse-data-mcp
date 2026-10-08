@@ -27,15 +27,15 @@ London Strategic Edge API
 - `cli.py` is the process entry point: it starts the server when given no subcommand, so an MCP
   client only ever needs the bare command, and otherwise manages the stored key.
 - `credentials.py` reads and writes the key in the operating system's credential store. A read
-  reports which of four things happened — stored, absent, no store on this host, or a store this
-  process cannot reach — because only the first two are answers and the last two need different
+  reports which of four things happened (stored, absent, no store on this host, or a store this
+  process cannot reach), because only the first two are answers and the last two need different
   remedies. All of them still resolve to no key, so a restricted host degrades to `LSE_API_KEY`
   rather than failing to start.
 - `server.py` owns MCP metadata, registration, and transport startup.
 - `tools.py` maps stable MCP tool names to documented SDK methods, validates arguments before
   they cost an API call, and shapes every result into the `rows`/`row_count`/`truncated` envelope.
 - `client.py` lazily creates the upstream client once per process.
-- `config.py` resolves the API key — environment first, then credential store — and validates the
+- `config.py` resolves the API key (environment first, then credential store) and validates the
   remaining environment configuration.
 
 ## Design constraints
@@ -51,7 +51,7 @@ London Strategic Edge API
 5. **No data persistence.** The adapter returns the SDK response without storing it.
 6. **Thin translation.** Business logic remains upstream; this project performs validation, naming, and error translation.
 7. **Stable agent surface.** MCP tool names should remain stable even when upstream implementation details change.
-8. **Group only where nothing is lost.** A tool maps to one SDK method so that every declared argument is always meaningful. Discovery endpoints are the exception: they take almost no arguments, so `get_reference` groups them behind a `resource` enum. Where a grouped argument does not apply, the tool raises rather than ignoring it — an argument silently dropped is worse than a rejected call, because the caller still believes the filter was applied.
+8. **Group only where nothing is lost.** A tool maps to one SDK method so that every declared argument is always meaningful. Discovery endpoints are the exception: they take almost no arguments, so `get_reference` groups them behind a `resource` enum. Where a grouped argument does not apply, the tool raises rather than ignoring it: an argument silently dropped is worse than a rejected call, because the caller still believes the filter was applied.
 9. **Mocked tests.** Automated tests do not call the live API or consume user quotas.
 
 ## Future transport

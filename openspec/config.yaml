@@ -1,14 +1,14 @@
 schema: spec-driven
 
 context: |
-  Project: lse-data-mcp — an unofficial, read-only MCP (Model Context Protocol)
+  Project: lse-data-mcp, an unofficial, read-only MCP (Model Context Protocol)
   server exposing the London Strategic Edge market-data API to AI clients.
 
   Tech stack: Python >=3.11, hatchling build backend, uv for env/lockfile.
   Runtime deps: mcp, lse-data (official upstream SDK), anyio, keyring.
   Dev tooling: pytest + pytest-cov, ruff (lint + format), mypy (strict on src/).
 
-  Layout: src/lse_data_mcp/ — cli.py (entrypoint), server.py (MCP server),
+  Layout: src/lse_data_mcp/ holds cli.py (entrypoint), server.py (MCP server),
   tools.py (the 15 tool definitions), client.py (SDK wrapper), config.py,
   credentials.py (keyring-backed API key storage). Tests in tests/.
 
