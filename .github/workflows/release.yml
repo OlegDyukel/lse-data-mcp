@@ -110,7 +110,7 @@ jobs:
       # job deliberately keeps the default, where a duplicate upload is an
       # error worth seeing rather than a silent no-op.
       - name: Publish
-        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
+        uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
         with:
           repository-url: https://test.pypi.org/legacy/
           skip-existing: true
@@ -135,7 +135,7 @@ jobs:
           path: dist/
 
       - name: Publish
-        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
+        uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
 
   # The bundle is built from the tag it will ship with, so it can never advertise
   # a version PyPI does not serve. It carries no server source of its own: a
