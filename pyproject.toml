@@ -23,7 +23,7 @@ classifiers = [
 dependencies = [
     "anyio>=4.5,<5",
     "keyring>=25,<26",
-    "lse-data>=0.14,<1",
+    "lse-data>=0.14,<4",
     "mcp>=1.27,<2",
 ]
 
